@@ -208,7 +208,7 @@ class Orchestrator:
         Returns:
             Słownik ze statystykami
         """
-        return {
+        stats = {
             "tm_stats": self.tm_manager.get_stats(),
             "agents": {
                 "format_handler": "active",
@@ -217,3 +217,11 @@ class Orchestrator:
                 "translator": "active",
             },
         }
+
+        # Dodaj statystyki Case Law Researcher jeśli jest włączony
+        if self.term_extractor.enable_case_law_research:
+            researcher = self.term_extractor._get_case_law_researcher()
+            if researcher:
+                stats["case_law_research"] = researcher.get_stats()
+
+        return stats

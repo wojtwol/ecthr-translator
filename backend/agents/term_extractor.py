@@ -8,6 +8,9 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# Lazy import to avoid circular dependencies
+_case_law_researcher = None
+
 
 class TermExtractor:
     """Ekstrahuje terminy prawnicze z segmentów."""
@@ -48,11 +51,34 @@ Odpowiedz w formacie JSON:
 
 Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"terms": []}}"""
 
-    def __init__(self):
-        """Inicjalizacja Term Extractor."""
+    def __init__(self, enable_case_law_research: bool = True):
+        """
+        Inicjalizacja Term Extractor.
+
+        Args:
+            enable_case_law_research: Czy włączyć wzbogacanie terminów z baz orzeczeń
+        """
         self.client = Anthropic(api_key=settings.anthropic_api_key)
         self.extracted_terms_cache = {}  # Cache dla już wyekstrahowanych terminów
-        logger.info("Term Extractor initialized")
+        self.enable_case_law_research = enable_case_law_research
+        self.case_law_researcher = None
+        logger.info(f"Term Extractor initialized (case law research: {enable_case_law_research})")
+
+    def _get_case_law_researcher(self):
+        """
+        Lazy initialization of Case Law Researcher.
+
+        Returns:
+            CaseLawResearcher instance
+        """
+        if not self.enable_case_law_research:
+            return None
+
+        if self.case_law_researcher is None:
+            from agents.case_law_researcher import CaseLawResearcher
+            self.case_law_researcher = CaseLawResearcher()
+
+        return self.case_law_researcher
 
     async def extract(
         self,
@@ -106,6 +132,19 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                 logger.error(f"Error extracting terms from segment {i}: {e}")
 
         logger.info(f"Extracted {len(all_terms)} unique terms from {len(segments)} segments")
+
+        # Wzbogać terminy o wyniki z baz orzeczeń (HUDOC, CURIA)
+        if self.enable_case_law_research and all_terms:
+            try:
+                researcher = self._get_case_law_researcher()
+                if researcher:
+                    logger.info(f"Enriching {len(all_terms)} terms with case law research")
+                    all_terms = await researcher.enrich_terms(all_terms)
+                    logger.info("Terms enriched with case law references")
+            except Exception as e:
+                logger.error(f"Error enriching terms with case law: {e}")
+                # Continue with unenriched terms
+
         return all_terms
 
     async def _extract_from_segment(

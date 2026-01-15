@@ -74,8 +74,13 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "hudoc_enabled": settings.hudoc_enabled,
-        "curia_enabled": settings.curia_enabled,
+        "services": {
+            "hudoc": settings.hudoc_enabled,
+            "curia": settings.curia_enabled,
+        },
+        "features": {
+            "case_law_research": settings.hudoc_enabled or settings.curia_enabled,
+        },
     }
 
 
