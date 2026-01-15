@@ -1,32 +1,33 @@
 """Document management endpoints."""
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 from typing import Optional
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 from models.document import (
-    Document,
+    Document as DocumentSchema,
     DocumentUploadResponse,
     DocumentStatus,
 )
+from db.database import get_db
+from db import models
 from config import settings
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-# In-memory storage for Sprint 1 (will be replaced with database in Sprint 2)
-documents_db = {}
-
 
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=201)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload a DOCX document for translation.
 
     Args:
         file: DOCX file to upload
+        db: Database session
 
     Returns:
         DocumentUploadResponse with document ID and status
@@ -46,74 +47,76 @@ async def upload_document(file: UploadFile = File(...)):
     content = await file.read()
     file_path.write_bytes(content)
 
-    # Create document record
-    now = datetime.now()
-    doc = {
-        "id": doc_id,
-        "filename": file.filename,
-        "original_path": str(file_path),
-        "translated_path": None,
-        "status": DocumentStatus.UPLOADED,
-        "created_at": now,
-        "updated_at": now,
-    }
-    documents_db[doc_id] = doc
-
-    return DocumentUploadResponse(
+    # Create document record in database
+    db_document = models.Document(
         id=doc_id,
         filename=file.filename,
-        status=DocumentStatus.UPLOADED,
-        created_at=now,
+        original_path=str(file_path),
+        status=DocumentStatus.UPLOADED.value,
+    )
+    db.add(db_document)
+    db.commit()
+    db.refresh(db_document)
+
+    return DocumentUploadResponse(
+        id=db_document.id,
+        filename=db_document.filename,
+        status=DocumentStatus(db_document.status),
+        created_at=db_document.created_at,
     )
 
 
-@router.get("/{document_id}", response_model=Document)
-async def get_document(document_id: str):
+@router.get("/{document_id}", response_model=DocumentSchema)
+async def get_document(document_id: str, db: Session = Depends(get_db)):
     """
     Get document status and metadata.
 
     Args:
         document_id: Document ID
+        db: Database session
 
     Returns:
         Document with current status
     """
-    if document_id not in documents_db:
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+
+    if not db_document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    return Document(**documents_db[document_id])
+    return db_document
 
 
 @router.get("/{document_id}/download")
-async def download_document(document_id: str):
+async def download_document(document_id: str, db: Session = Depends(get_db)):
     """
     Download translated document.
 
     Args:
         document_id: Document ID
+        db: Database session
 
     Returns:
         Translated DOCX file
     """
-    if document_id not in documents_db:
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+
+    if not db_document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    doc = documents_db[document_id]
-
-    if doc["status"] != DocumentStatus.COMPLETED:
+    if db_document.status != DocumentStatus.COMPLETED.value:
         raise HTTPException(
             status_code=400, detail="Document translation not completed yet"
         )
 
-    if not doc["translated_path"]:
+    if not db_document.translated_path:
         raise HTTPException(status_code=404, detail="Translated file not found")
 
-    file_path = Path(doc["translated_path"])
+    file_path = Path(db_document.translated_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Translated file not found")
 
     return FileResponse(
         path=file_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"translated_{doc['filename']}",
+        filename=f"translated_{db_document.filename}",
     )

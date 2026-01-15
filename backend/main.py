@@ -6,6 +6,7 @@ import logging
 
 from config import settings
 from routers import documents, translation, glossary
+from db.database import init_db
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +43,11 @@ app.include_router(glossary.router, prefix="/api")
 async def startup_event():
     """Application startup tasks."""
     logger.info("Starting ECTHR Translator API")
+
+    # Initialize database
+    init_db()
+    logger.info("Database initialized")
+
     logger.info(f"Upload path: {settings.upload_path}")
     logger.info(f"Output path: {settings.output_path}")
     logger.info(f"TM path: {settings.tm_path}")
