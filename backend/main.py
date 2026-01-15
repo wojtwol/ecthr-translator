@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from .config import settings
-from .routers import documents, translation, glossary
+from config import settings
+from routers import documents, translation, glossary
 
 # Configure logging
 logging.basicConfig(

@@ -7,7 +7,7 @@ from datetime import datetime
 import asyncio
 import json
 
-from ..models.translation_job import (
+from models.translation_job import (
     TranslationJob,
     TranslationJobCreate,
     TranslationJobStartResponse,

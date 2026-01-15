@@ -5,7 +5,7 @@ from typing import List, Dict
 import uuid
 from datetime import datetime
 
-from ..models.term import (
+from models.term import (
     Term,
     TermUpdate,
     TermStatus,

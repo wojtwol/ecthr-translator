@@ -7,12 +7,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from ..models.document import (
+from models.document import (
     Document,
     DocumentUploadResponse,
     DocumentStatus,
 )
-from ..config import settings
+from config import settings
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
