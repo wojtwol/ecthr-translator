@@ -100,7 +100,7 @@ async def start_translation(
 
     # Start translation in background
     asyncio.create_task(
-        _run_translation(job.id, document_id, str(document.file_path), config)
+        _run_translation(job.id, document_id, str(document.original_path), config)
     )
 
     logger.info(f"Translation started for document {document_id}, job {job.id}")
