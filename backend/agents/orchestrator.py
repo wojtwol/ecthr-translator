@@ -8,6 +8,8 @@ from agents.format_handler import FormatHandler
 from agents.structure_parser import StructureParser
 from agents.term_extractor import TermExtractor
 from agents.translator import Translator
+from agents.change_implementer import ChangeImplementer
+from agents.qa_reviewer import QAReviewer
 from services.tm_manager import TMManager
 from config import settings
 
@@ -44,6 +46,8 @@ class Orchestrator:
         self.tm_manager = TMManager()
         self.term_extractor = TermExtractor()
         self.translator = Translator()
+        self.change_implementer = ChangeImplementer()
+        self.qa_reviewer = QAReviewer()
 
         # Załaduj TM jeśli istnieje
         try:
@@ -52,7 +56,7 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"Could not load TM: {e}")
 
-        logger.info("Orchestrator initialized")
+        logger.info("Orchestrator initialized with Sprint 5 agents")
 
     async def process(
         self, document_id: str, source_path: str
@@ -153,9 +157,15 @@ class Orchestrator:
         segments: List[Dict[str, Any]],
         validated_terms: List[Dict[str, Any]],
         original_metadata: Dict[str, Any],
-    ) -> TranslationResult:
+    ) -> Dict[str, Any]:
         """
-        Finalizuje tłumaczenie po walidacji użytkownika.
+        Finalizuje tłumaczenie po walidacji użytkownika (Sprint 5).
+
+        Workflow:
+        1. Change Implementer - wdraża zatwierdzone zmiany terminów
+        2. QA Reviewer - sprawdza spójność i jakość
+        3. Rekonstrukcja DOCX
+        4. Automatyczny update TM
 
         Args:
             document_id: ID dokumentu
@@ -164,42 +174,86 @@ class Orchestrator:
             original_metadata: Metadane oryginalnego dokumentu
 
         Returns:
-            TranslationResult
+            Słownik z wynikiem finalizacji zawierający status, ścieżkę i raport QA
         """
         try:
-            logger.info(f"Finalizing translation for document {document_id}")
+            logger.info(f"[Sprint 5] Finalizing translation for document {document_id}")
 
-            # Rekonstrukcja DOCX
-            output_path = settings.output_path / f"{document_id}_translated.docx"
-            self.format_handler.reconstruct(
-                segments, original_metadata, str(output_path)
+            # Faza 1: Change Implementer - wdróż zmiany terminów
+            logger.info("Phase 1: Implementing terminology changes")
+            updated_segments = await self.change_implementer.implement_changes(
+                segments, validated_terms
             )
 
-            # Update TM z zatwierdzonymi terminami
+            # Faza 2: QA Reviewer - sprawdź jakość
+            logger.info("Phase 2: QA review")
+            qa_report = await self.qa_reviewer.review(
+                updated_segments, validated_terms
+            )
+
+            logger.info(
+                f"QA Review complete: {qa_report.get('issues_count', {})}"
+            )
+
+            # Jeśli QA nie zatwierdza, zwróć raport z ostrzeżeniem
+            if not qa_report.get("approved", False):
+                logger.warning("QA review found critical issues")
+                return {
+                    "status": "qa_failed",
+                    "document_id": document_id,
+                    "qa_report": qa_report,
+                    "message": "Translation has quality issues that should be reviewed",
+                }
+
+            # Faza 3: Rekonstrukcja DOCX
+            logger.info("Phase 3: Reconstructing DOCX")
+            output_path = settings.output_path / f"{document_id}_translated.docx"
+            self.format_handler.reconstruct(
+                updated_segments, original_metadata, str(output_path)
+            )
+
+            # Faza 4: Automatyczny update TM
+            logger.info("Phase 4: Updating Translation Memory")
+            tm_updated_count = 0
+
             for term in validated_terms:
                 if term.get("status") in ["approved", "edited"]:
                     self.tm_manager.add_entry(
                         source=term["source_term"],
                         target=term["target_term"],
-                        metadata={"source": "user_validated", "document_id": document_id},
+                        metadata={
+                            "source": "user_validated",
+                            "document_id": document_id,
+                            "status": term.get("status"),
+                        },
                     )
+                    tm_updated_count += 1
 
             # Zapisz zaktualizowaną TM
-            self.tm_manager.save(f"tm_updated_{document_id}.tmx")
+            tm_filename = f"tm_updated_{document_id}.tmx"
+            self.tm_manager.save(tm_filename)
 
-            logger.info(f"Translation finalized: {output_path}")
-
-            return TranslationResult(
-                status="completed",
-                document_id=document_id,
-                translated_path=str(output_path),
+            logger.info(
+                f"Translation finalized successfully: {output_path}, "
+                f"TM updated with {tm_updated_count} terms"
             )
+
+            return {
+                "status": "completed",
+                "document_id": document_id,
+                "translated_path": str(output_path),
+                "qa_report": qa_report,
+                "tm_updated": tm_updated_count,
+                "tm_file": tm_filename,
+            }
 
         except Exception as e:
             logger.error(f"Error finalizing translation: {e}", exc_info=True)
-            return TranslationResult(
-                status="error", document_id=document_id, error=str(e)
-            )
+            return {
+                "status": "error",
+                "document_id": document_id,
+                "error": str(e),
+            }
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -215,6 +269,8 @@ class Orchestrator:
                 "structure_parser": "active",
                 "term_extractor": "active",
                 "translator": "active",
+                "change_implementer": self.change_implementer.get_stats(),
+                "qa_reviewer": self.qa_reviewer.get_stats(),
             },
         }
 
