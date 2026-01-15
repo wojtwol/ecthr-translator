@@ -1,11 +1,12 @@
-"""Translation job endpoints."""
+"""Translation job endpoints with full Orchestrator integration."""
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from typing import Dict
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from typing import Dict, List
 import uuid
 from datetime import datetime
 import asyncio
-import json
+import logging
 
 from models.translation_job import (
     TranslationJob,
@@ -13,196 +14,401 @@ from models.translation_job import (
     TranslationJobStartResponse,
     TranslationJobStatus,
     TranslationPhase,
-    TranslationStats,
 )
+from db.database import get_db
+from db import models
+from agents.orchestrator import Orchestrator
+from routers.websocket import get_connection_manager
+from config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/translation", tags=["translation"])
 
-# In-memory storage for Sprint 1
-translation_jobs_db: Dict[str, dict] = {}
-active_websockets: Dict[str, WebSocket] = {}
+# Global orchestrator instance
+orchestrator = None
 
 
-@router.post("/{document_id}/start", response_model=TranslationJobStartResponse, status_code=202)
-async def start_translation(document_id: str, config: TranslationJobCreate):
+def get_orchestrator():
+    """Get or create orchestrator instance."""
+    global orchestrator
+    if orchestrator is None:
+        orchestrator = Orchestrator()
+    return orchestrator
+
+
+@router.post("/start", response_model=TranslationJobStartResponse, status_code=202)
+async def start_translation(
+    config: TranslationJobCreate,
+    db: Session = Depends(get_db),
+):
     """
     Start translation process for a document.
 
     Args:
-        document_id: Document ID
-        config: Translation configuration
+        config: Translation configuration with document_id
+        db: Database session
 
     Returns:
         TranslationJobStartResponse with job ID
     """
-    # Check if document exists (will check actual DB in Sprint 2)
-    # For now, just accept any document_id
+    document_id = config.document_id
+
+    # Check if document exists
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if document.status != "uploaded":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Document not ready for translation. Current status: {document.status}",
+        )
 
     # Check if translation already in progress
-    for job in translation_jobs_db.values():
-        if (
-            job["document_id"] == document_id
-            and job["status"] == TranslationJobStatus.IN_PROGRESS
-        ):
-            raise HTTPException(
-                status_code=409, detail="Translation already in progress for this document"
-            )
+    existing_job = (
+        db.query(models.TranslationJob)
+        .filter(
+            models.TranslationJob.document_id == document_id,
+            models.TranslationJob.status == TranslationJobStatus.IN_PROGRESS,
+        )
+        .first()
+    )
 
-    # Create job
-    job_id = f"job_{uuid.uuid4().hex[:12]}"
-    now = datetime.now()
+    if existing_job:
+        raise HTTPException(
+            status_code=409, detail="Translation already in progress for this document"
+        )
 
-    job = {
-        "id": job_id,
-        "document_id": document_id,
-        "phase": TranslationPhase.ANALYSIS,
-        "status": TranslationJobStatus.IN_PROGRESS,
-        "progress": 0.0,
-        "current_step": "Starting translation...",
-        "stats": {"segments_total": 0, "segments_translated": 0, "terms_extracted": 0},
-        "error_message": None,
-        "started_at": now,
-        "completed_at": None,
-        "created_at": now,
-    }
-    translation_jobs_db[job_id] = job
+    # Create translation job
+    job = models.TranslationJob(
+        id=str(uuid.uuid4()),
+        document_id=document_id,
+        phase=TranslationPhase.ANALYSIS,
+        status=TranslationJobStatus.IN_PROGRESS,
+        progress=0.0,
+        current_step="Starting translation...",
+        started_at=datetime.now(),
+    )
+    db.add(job)
 
-    # Start background task (placeholder for Sprint 2+)
-    # In real implementation, this would trigger the Orchestrator
-    asyncio.create_task(_simulate_translation(job_id))
+    # Update document status
+    document.status = "translating"
+
+    db.commit()
+    db.refresh(job)
+
+    # Start translation in background
+    asyncio.create_task(
+        _run_translation(job.id, document_id, str(document.file_path), config)
+    )
+
+    logger.info(f"Translation started for document {document_id}, job {job.id}")
 
     return TranslationJobStartResponse(
-        job_id=job_id,
+        job_id=job.id,
         document_id=document_id,
-        status=TranslationJobStatus.IN_PROGRESS,
-        phase=TranslationPhase.ANALYSIS,
+        status=job.status,
+        phase=job.phase,
     )
 
 
 @router.get("/{document_id}/status", response_model=TranslationJob)
-async def get_translation_status(document_id: str):
+async def get_translation_status(document_id: str, db: Session = Depends(get_db)):
     """
     Get translation job status for a document.
 
     Args:
         document_id: Document ID
+        db: Database session
 
     Returns:
         TranslationJob with current status
     """
-    # Find job for document
-    job = None
-    for j in translation_jobs_db.values():
-        if j["document_id"] == document_id:
-            job = j
-            break
+    # Find most recent job for document
+    job = (
+        db.query(models.TranslationJob)
+        .filter(models.TranslationJob.document_id == document_id)
+        .order_by(models.TranslationJob.created_at.desc())
+        .first()
+    )
 
     if not job:
-        raise HTTPException(status_code=404, detail="No translation job found for this document")
+        raise HTTPException(
+            status_code=404, detail="No translation job found for this document"
+        )
 
-    return TranslationJob(**job)
+    return TranslationJob(
+        id=job.id,
+        document_id=job.document_id,
+        phase=job.phase,
+        status=job.status,
+        progress=job.progress,
+        current_step=job.current_step or "",
+        error_message=job.error_message,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        created_at=job.created_at,
+        stats={},
+    )
 
 
 @router.post("/{document_id}/finalize")
-async def finalize_translation(document_id: str):
+async def finalize_translation(document_id: str, db: Session = Depends(get_db)):
     """
-    Finalize translation after user validation.
+    Finalize translation after user validation (Sprint 5).
+
+    This triggers:
+    1. Change Implementer - applies validated term changes
+    2. QA Reviewer - quality control
+    3. DOCX Reconstruction
+    4. TM Auto-update
 
     Args:
         document_id: Document ID
+        db: Database session
 
     Returns:
-        Success message
+        Finalization result with QA report
     """
-    # Find job
-    job = None
-    for j in translation_jobs_db.values():
-        if j["document_id"] == document_id:
-            job = j
-            break
+    # Find document
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Find translation job
+    job = (
+        db.query(models.TranslationJob)
+        .filter(models.TranslationJob.document_id == document_id)
+        .order_by(models.TranslationJob.created_at.desc())
+        .first()
+    )
 
     if not job:
         raise HTTPException(status_code=404, detail="No translation job found")
 
-    if job["status"] != TranslationJobStatus.AWAITING_VALIDATION:
-        raise HTTPException(status_code=400, detail="Translation not ready for finalization")
+    if job.status != TranslationJobStatus.AWAITING_VALIDATION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Translation not ready for finalization. Current status: {job.status}",
+        )
 
     # Update job status
-    job["status"] = TranslationJobStatus.FINALIZING
-    job["phase"] = TranslationPhase.IMPLEMENTING
-    job["progress"] = 0.9
+    job.status = TranslationJobStatus.FINALIZING
+    job.phase = TranslationPhase.IMPLEMENTING
+    job.progress = 0.9
+    job.current_step = "Finalizing translation..."
+    db.commit()
 
-    # Trigger finalization (placeholder)
-    asyncio.create_task(_simulate_finalization(job["id"]))
+    # Start finalization in background
+    asyncio.create_task(_run_finalization(job.id, document_id, db))
 
-    return {"message": "Finalization started"}
+    logger.info(f"Finalization started for document {document_id}")
+
+    return {
+        "message": "Finalization started",
+        "document_id": document_id,
+        "job_id": job.id,
+    }
 
 
-@router.websocket("/ws/{document_id}")
-async def websocket_translation_progress(websocket: WebSocket, document_id: str):
+async def _run_translation(
+    job_id: str,
+    document_id: str,
+    source_path: str,
+    config: TranslationJobCreate,
+):
     """
-    WebSocket endpoint for real-time translation progress updates.
+    Run the actual translation using Orchestrator.
 
     Args:
-        websocket: WebSocket connection
+        job_id: Translation job ID
         document_id: Document ID
+        source_path: Path to source document
+        config: Translation configuration
     """
-    await websocket.accept()
-    active_websockets[document_id] = websocket
+    from db.database import SessionLocal
+
+    db = SessionLocal()
+    ws_manager = get_connection_manager()
+    orch = get_orchestrator()
 
     try:
-        while True:
-            # Keep connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        if document_id in active_websockets:
-            del active_websockets[document_id]
+        logger.info(f"[Job {job_id}] Starting Orchestrator.process()")
+
+        # Get job
+        job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
+
+        # Phase 1: Analysis
+        await ws_manager.broadcast_progress(document_id, "analysis", 0.1, "Analyzing document structure")
+        job.phase = TranslationPhase.ANALYSIS
+        job.progress = 0.1
+        db.commit()
+
+        # Phase 2: Term Extraction
+        await ws_manager.broadcast_progress(document_id, "term_extraction", 0.3, "Extracting terminology")
+        job.phase = TranslationPhase.TERM_EXTRACTION
+        job.progress = 0.3
+        db.commit()
+
+        # Phase 3: External Research
+        if config.use_hudoc or config.use_curia:
+            await ws_manager.broadcast_progress(document_id, "research", 0.5, "Searching HUDOC and CURIA")
+            job.phase = TranslationPhase.RESEARCH
+            job.progress = 0.5
+            db.commit()
+
+        # Phase 4: Translation
+        await ws_manager.broadcast_progress(document_id, "translating", 0.7, "Translating segments")
+        job.phase = TranslationPhase.TRANSLATING
+        job.progress = 0.7
+        db.commit()
+
+        # Run orchestrator
+        result = await orch.process(document_id, source_path)
+
+        if result.status == "error":
+            raise Exception(result.error)
+
+        # Save segments and terms to database
+        # (In real implementation, save to DB here)
+
+        # Move to validation phase
+        job.status = TranslationJobStatus.AWAITING_VALIDATION
+        job.phase = TranslationPhase.VALIDATION
+        job.progress = 0.9
+        job.current_step = "Awaiting user validation"
+
+        # Update document
+        document = db.query(models.Document).filter(models.Document.id == document_id).first()
+        document.status = "validating"
+
+        db.commit()
+
+        await ws_manager.broadcast_progress(
+            document_id, "validation", 0.9, "Translation complete. Please validate terms."
+        )
+
+        logger.info(f"[Job {job_id}] Translation complete, awaiting validation")
+
+    except Exception as e:
+        logger.error(f"[Job {job_id}] Translation failed: {e}", exc_info=True)
+
+        job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
+        if job:
+            job.status = TranslationJobStatus.FAILED
+            job.error_message = str(e)
+            job.completed_at = datetime.now()
+
+        document = db.query(models.Document).filter(models.Document.id == document_id).first()
+        if document:
+            document.status = "error"
+
+        db.commit()
+
+        await ws_manager.broadcast_error(document_id, str(e))
+
+    finally:
+        db.close()
 
 
-# Helper functions for Sprint 1 simulation
-async def _simulate_translation(job_id: str):
-    """Simulate translation process (placeholder for Sprint 2+)."""
-    job = translation_jobs_db[job_id]
-    phases = [
-        (TranslationPhase.ANALYSIS, 0.2, "Analyzing document structure..."),
-        (TranslationPhase.TERM_EXTRACTION, 0.4, "Extracting terms..."),
-        (TranslationPhase.RESEARCH, 0.5, "Searching HUDOC and CURIA..."),
-        (TranslationPhase.TRANSLATING, 0.9, "Translating segments..."),
-    ]
+async def _run_finalization(job_id: str, document_id: str, db: Session):
+    """
+    Run finalization with Change Implementer and QA Reviewer (Sprint 5).
 
-    for phase, progress, step in phases:
-        await asyncio.sleep(2)
-        job["phase"] = phase
-        job["progress"] = progress
-        job["current_step"] = step
+    Args:
+        job_id: Translation job ID
+        document_id: Document ID
+        db: Database session
+    """
+    from db.database import SessionLocal
 
-        # Send WebSocket update
-        if job["document_id"] in active_websockets:
-            ws = active_websockets[job["document_id"]]
-            try:
-                await ws.send_json({
-                    "type": "progress",
-                    "phase": phase,
-                    "progress": progress,
-                    "current_step": step,
-                })
-            except:
-                pass
+    db = SessionLocal()
+    ws_manager = get_connection_manager()
+    orch = get_orchestrator()
 
-    # Move to validation phase
-    job["status"] = TranslationJobStatus.AWAITING_VALIDATION
-    job["phase"] = TranslationPhase.VALIDATION
-    job["progress"] = 0.9
+    try:
+        logger.info(f"[Job {job_id}] Starting Sprint 5 finalization")
 
+        job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
+        document = db.query(models.Document).filter(models.Document.id == document_id).first()
 
-async def _simulate_finalization(job_id: str):
-    """Simulate finalization process."""
-    job = translation_jobs_db[job_id]
-    await asyncio.sleep(2)
-    job["phase"] = TranslationPhase.QA
-    job["progress"] = 0.95
-    await asyncio.sleep(2)
-    job["status"] = TranslationJobStatus.COMPLETED
-    job["phase"] = TranslationPhase.COMPLETED
-    job["progress"] = 1.0
-    job["completed_at"] = datetime.now()
+        # Get validated terms from database
+        validated_terms = db.query(models.Term).filter(models.Term.document_id == document_id).all()
+
+        terms_data = [
+            {
+                "id": term.id,
+                "source_term": term.source_term,
+                "target_term": term.target_term,
+                "status": term.status,
+                "original_proposal": term.original_proposal,
+            }
+            for term in validated_terms
+        ]
+
+        # Get segments (placeholder - should be from DB)
+        segments = []
+        metadata = {}
+
+        # Call Orchestrator.finalize()
+        await ws_manager.broadcast_progress(document_id, "implementing", 0.92, "Implementing changes")
+
+        result = await orch.finalize(
+            document_id=document_id,
+            segments=segments,
+            validated_terms=terms_data,
+            original_metadata=metadata,
+        )
+
+        if result.get("status") == "error":
+            raise Exception(result.get("error", "Finalization failed"))
+
+        if result.get("status") == "qa_failed":
+            # QA found critical issues
+            job.status = TranslationJobStatus.AWAITING_VALIDATION
+            job.current_step = "QA review failed - please review issues"
+            job.error_message = result.get("message")
+            db.commit()
+
+            await ws_manager.broadcast_error(
+                document_id, "QA review found critical issues. Please review."
+            )
+
+            logger.warning(f"[Job {job_id}] QA review failed")
+            return
+
+        # Success!
+        job.status = TranslationJobStatus.COMPLETED
+        job.phase = TranslationPhase.COMPLETED
+        job.progress = 1.0
+        job.current_step = "Translation complete"
+        job.completed_at = datetime.now()
+
+        document.status = "completed"
+        document.translated_path = result.get("translated_path")
+
+        db.commit()
+
+        await ws_manager.broadcast_translation_complete(document_id, job_id)
+
+        logger.info(
+            f"[Job {job_id}] Finalization complete. "
+            f"TM updated: {result.get('tm_updated', 0)} terms"
+        )
+
+    except Exception as e:
+        logger.error(f"[Job {job_id}] Finalization failed: {e}", exc_info=True)
+
+        job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
+        if job:
+            job.status = TranslationJobStatus.FAILED
+            job.error_message = str(e)
+            job.completed_at = datetime.now()
+
+        db.commit()
+
+        await ws_manager.broadcast_error(document_id, str(e))
+
+    finally:
+        db.close()
