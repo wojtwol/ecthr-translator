@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from config import settings
-from routers import documents, translation, glossary, websocket
+from routers import documents, translation, glossary, websocket, tm
 from db.database import init_db
 
 # Configure logging
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(documents.router, prefix="/api")
 app.include_router(translation.router, prefix="/api")
 app.include_router(glossary.router, prefix="/api")
+app.include_router(tm.router, prefix="/api")
 app.include_router(websocket.router)
 
 
