@@ -290,6 +290,9 @@ async def _run_translation(
             document_id, "validation", 0.9, "Translation complete. Please validate terms."
         )
 
+        # Notify frontend that translation is complete and ready for validation
+        await ws_manager.broadcast_translation_complete(document_id, job_id)
+
         logger.info(f"[Job {job_id}] Translation complete, awaiting validation")
 
     except Exception as e:
