@@ -13,13 +13,13 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: TM_PATH
-        value: /opt/render/project/src/data/tm
+        value: /tmp/data/tm
       - key: UPLOAD_PATH
-        value: /opt/render/project/src/data/uploads
+        value: /tmp/data/uploads
       - key: OUTPUT_PATH
-        value: /opt/render/project/src/data/outputs
+        value: /tmp/data/outputs
       - key: DATABASE_URL
-        value: sqlite:////opt/render/project/src/data/ecthr.db
+        value: sqlite:////tmp/data/ecthr.db
       - key: BACKEND_HOST
         value: 0.0.0.0
       - key: LOG_LEVEL

@@ -11,12 +11,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str
 
     # Paths
-    tm_path: Path = Path("./data/tm")
-    upload_path: Path = Path("./data/uploads")
-    output_path: Path = Path("./data/outputs")
+    tm_path: Path = Path("/tmp/data/tm")
+    upload_path: Path = Path("/tmp/data/uploads")
+    output_path: Path = Path("/tmp/data/outputs")
 
     # Database
-    database_url: str = "sqlite:///./data/ecthr.db"
+    database_url: str = "sqlite:////tmp/data/ecthr.db"
 
     # Server
     backend_host: str = "0.0.0.0"
