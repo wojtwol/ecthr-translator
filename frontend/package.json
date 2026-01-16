@@ -1,6 +1,6 @@
 {
   "name": "ecthr-translator-frontend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "dependencies": {
     "@tanstack/react-query": "^5.17.19",
@@ -21,7 +21,6 @@
   },
   "scripts": {
     "dev": "vite",
-    "prebuild": "echo \"VITE_API_URL=$VITE_API_URL\"",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext js,jsx"
