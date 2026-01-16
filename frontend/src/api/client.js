@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// Production API URL for deployment
 const API_URL = import.meta.env.VITE_API_URL || 'https://ecthr-translator-backend.onrender.com/api';
 
 const client = axios.create({
