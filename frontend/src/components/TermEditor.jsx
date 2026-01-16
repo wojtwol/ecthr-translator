@@ -16,7 +16,7 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
     setSaving(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/glossary/${documentId}/${term.id}`,
+        `https://ecthr-translator-backend.onrender.com/api/glossary/${documentId}/${term.id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

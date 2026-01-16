@@ -18,7 +18,7 @@ export const useTranslation = (documentId) => {
   // Fetch document details
   const fetchDocument = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/documents/${documentId}`);
+      const response = await fetch(`https://ecthr-translator-backend.onrender.com/api/documents/${documentId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch document');
       }
@@ -33,7 +33,7 @@ export const useTranslation = (documentId) => {
   // Fetch glossary terms
   const fetchTerms = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/glossary/${documentId}`);
+      const response = await fetch(`https://ecthr-translator-backend.onrender.com/api/glossary/${documentId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch terms');
       }
@@ -51,7 +51,7 @@ export const useTranslation = (documentId) => {
       setTranslationStatus('translating');
       setError(null);
 
-      const response = await fetch(`http://localhost:8000/api/translation/${documentId}/start`, {
+      const response = await fetch(`https://ecthr-translator-backend.onrender.com/api/translation/${documentId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,7 +76,7 @@ export const useTranslation = (documentId) => {
   // Finalize translation after validation
   const finalizeTranslation = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/translation/${documentId}/finalize`, {
+      const response = await fetch(`https://ecthr-translator-backend.onrender.com/api/translation/${documentId}/finalize`, {
         method: 'POST',
       });
 
@@ -97,7 +97,7 @@ export const useTranslation = (documentId) => {
   const updateTerm = useCallback(async (termId, update) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/glossary/${documentId}/${termId}`,
+        `https://ecthr-translator-backend.onrender.com/api/glossary/${documentId}/${termId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -131,7 +131,7 @@ export const useTranslation = (documentId) => {
     if (!documentId) return;
 
     const connectWebSocket = () => {
-      const ws = new WebSocket(`ws://localhost:8000/ws/${documentId}`);
+      const ws = new WebSocket(`wss://ecthr-translator-backend.onrender.com/ws/${documentId}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
