@@ -50,6 +50,14 @@ async def startup_event():
     """Application startup tasks."""
     logger.info("Starting ECTHR Translator API")
 
+    # Ensure data directories exist (critical for Render /tmp storage)
+    import os
+    os.makedirs("/tmp/data", exist_ok=True)
+    os.makedirs(settings.tm_path, exist_ok=True)
+    os.makedirs(settings.upload_path, exist_ok=True)
+    os.makedirs(settings.output_path, exist_ok=True)
+    logger.info("Data directories created")
+
     # Initialize database
     init_db()
     logger.info("Database initialized")
