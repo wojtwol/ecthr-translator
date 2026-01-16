@@ -4,7 +4,7 @@ services:
     env: python
     region: frankfurt
     plan: free
-    branch: claude/new-conversation-m5W8H
+    branch: claude/continue-new-thread-Twuij
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
