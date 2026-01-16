@@ -16,7 +16,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     setLoading(true);
     try {
       const response = await fetch(
-        `https://ecthr-translator-backend.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`
       );
       const data = await response.json();
       setTerms(data.terms);
@@ -54,7 +54,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     }
 
     try {
-      await fetch(`https://ecthr-translator-backend.onrender.com/api/glossary/${documentId}/approve-all`, {
+      await fetch(`https://ecthr-translator.onrender.com/api/glossary/${documentId}/approve-all`, {
         method: 'POST',
       });
       fetchTerms();

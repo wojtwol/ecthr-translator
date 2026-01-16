@@ -71,7 +71,7 @@ const TranslationPage = () => {
   };
 
   const handleDownload = () => {
-    window.location.href = `https://ecthr-translator-backend.onrender.com/api/documents/${documentId}/download`;
+    window.location.href = `https://ecthr-translator.onrender.com/api/documents/${documentId}/download`;
   };
 
   if (loading) {

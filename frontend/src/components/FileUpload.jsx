@@ -28,7 +28,7 @@ const FileUpload = ({ onUploadSuccess }) => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('https://ecthr-translator-backend.onrender.com/api/documents/upload', {
+      const response = await fetch('https://ecthr-translator.onrender.com/api/documents/upload', {
         method: 'POST',
         body: formData,
       });
