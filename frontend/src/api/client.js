@@ -38,7 +38,10 @@ export const documentsApi = {
 // Translation API
 export const translationApi = {
   start: async (documentId, config = {}) => {
-    const response = await client.post(`/translation/${documentId}/start`, config);
+    const response = await client.post(`/translation/${documentId}/start`, {
+      use_hudoc: config.useHudoc !== false,
+      use_curia: config.useCuria !== false,
+    });
     return response.data;
   },
 

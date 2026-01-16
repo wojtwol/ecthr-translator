@@ -10,7 +10,7 @@ import logging
 
 from models.translation_job import (
     TranslationJob,
-    TranslationJobCreate,
+    TranslationConfig,
     TranslationJobStartResponse,
     TranslationJobStatus,
     TranslationPhase,
@@ -37,22 +37,23 @@ def get_orchestrator():
     return orchestrator
 
 
-@router.post("/start", response_model=TranslationJobStartResponse, status_code=202)
+@router.post("/{document_id}/start", response_model=TranslationJobStartResponse, status_code=202)
 async def start_translation(
-    config: TranslationJobCreate,
+    document_id: str,
+    config: TranslationConfig = TranslationConfig(),
     db: Session = Depends(get_db),
 ):
     """
     Start translation process for a document.
 
     Args:
-        config: Translation configuration with document_id
+        document_id: Document ID from path
+        config: Translation configuration
         db: Database session
 
     Returns:
         TranslationJobStartResponse with job ID
     """
-    document_id = config.document_id
 
     # Check if document exists
     document = db.query(models.Document).filter(models.Document.id == document_id).first()
@@ -216,7 +217,7 @@ async def _run_translation(
     job_id: str,
     document_id: str,
     source_path: str,
-    config: TranslationJobCreate,
+    config: TranslationConfig,
 ):
     """
     Run the actual translation using Orchestrator.

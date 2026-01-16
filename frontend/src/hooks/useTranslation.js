@@ -51,11 +51,10 @@ export const useTranslation = (documentId) => {
       setTranslationStatus('translating');
       setError(null);
 
-      const response = await fetch(`http://localhost:8000/api/translation/start`, {
+      const response = await fetch(`http://localhost:8000/api/translation/${documentId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          document_id: documentId,
           use_hudoc: config.useHudoc !== false,
           use_curia: config.useCuria !== false,
         }),
