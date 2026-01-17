@@ -29,7 +29,7 @@ class ChangeImplementer:
             api_key: Klucz API Anthropic (opcjonalny, domyślnie z settings)
         """
         self.client = Anthropic(api_key=api_key or settings.anthropic_api_key)
-        self.model = "claude-3-5-sonnet-20240620"
+        self.model = "claude-sonnet-4-5-20250929"
         logger.info("Change Implementer initialized")
 
     async def implement_changes(
