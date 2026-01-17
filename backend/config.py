@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # TM Configuration
     tm_fuzzy_threshold: float = 0.75
     tm_max_results: int = 10
+    max_tmx_size_mb: int = 500  # Larger limit for TM files
 
     # Translation Configuration
     max_file_size_mb: int = 50

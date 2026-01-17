@@ -32,6 +32,11 @@ async def upload_tmx(file: UploadFile = File(...)):
                 detail="Only TMX files are allowed"
             )
 
+        # Check file size (read in chunks to avoid loading entire file in memory)
+        file_size = 0
+        chunk_size = 1024 * 1024  # 1MB chunks
+        max_size = settings.max_tmx_size_mb * 1024 * 1024
+
         # Zapisz plik
         tm_path = settings.tm_path
         tm_path.mkdir(parents=True, exist_ok=True)
@@ -39,7 +44,16 @@ async def upload_tmx(file: UploadFile = File(...)):
         file_path = tm_path / file.filename
 
         with open(file_path, 'wb') as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while chunk := await file.read(chunk_size):
+                file_size += len(chunk)
+                if file_size > max_size:
+                    # Remove partially uploaded file
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {settings.max_tmx_size_mb}MB"
+                    )
+                buffer.write(chunk)
 
         logger.info(f"TMX file uploaded: {file_path}")
 
