@@ -13,9 +13,11 @@ from models.document import (
     DocumentUploadResponse,
     DocumentStatus,
 )
+from models.document_stats import DocumentStats
 from db.database import get_db
 from db import models
 from config import settings
+from agents.format_handler import FormatHandler
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -84,6 +86,56 @@ async def get_document(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
 
     return db_document
+
+
+@router.get("/{document_id}/analyze", response_model=DocumentStats)
+async def analyze_document(document_id: str, db: Session = Depends(get_db)):
+    """
+    Analyze document and return statistics (word count, segments, etc.).
+
+    Args:
+        document_id: Document ID
+        db: Database session
+
+    Returns:
+        DocumentStats with analysis results
+    """
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    try:
+        # Use FormatHandler to extract document structure
+        handler = FormatHandler()
+        extracted = handler.extract(db_document.original_path)
+
+        segments = extracted.get("segments", [])
+
+        # Calculate statistics
+        total_words = 0
+        total_chars = 0
+
+        for segment in segments:
+            text = segment.get("text", "")
+            total_words += len(text.split())
+            total_chars += len(text)
+
+        # Estimate translation time (rough: ~250 words per minute for automated translation)
+        estimated_time = max(1, int(total_words / 250))
+
+        return DocumentStats(
+            total_segments=len(segments),
+            total_words=total_words,
+            total_characters=total_chars,
+            estimated_translation_time_minutes=estimated_time
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze document: {str(e)}"
+        )
 
 
 @router.get("/{document_id}/download")

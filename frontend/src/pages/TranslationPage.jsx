@@ -26,8 +26,32 @@ const TranslationPage = () => {
   const [selectedTerm, setSelectedTerm] = useState(null);
   const [view, setView] = useState('split'); // split, glossary, preview
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [documentStats, setDocumentStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Remove auto-start - user must click "Translate" button
+
+  // Fetch document statistics when document is ready
+  useEffect(() => {
+    if (document && (document.status === 'uploaded' || translationStatus === 'uploaded')) {
+      fetchDocumentStats();
+    }
+  }, [document, translationStatus]);
+
+  const fetchDocumentStats = async () => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(`https://ecthr-translator.onrender.com/api/documents/${documentId}/analyze`);
+      if (response.ok) {
+        const stats = await response.json();
+        setDocumentStats(stats);
+      }
+    } catch (err) {
+      console.error('Failed to fetch document stats:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const handleStartTranslation = async () => {
     try {
@@ -225,6 +249,37 @@ const TranslationPage = () => {
                       {new Date(document.upload_timestamp).toLocaleString('pl-PL')}
                     </span>
                   </div>
+                )}
+
+                {/* Document Statistics */}
+                {loadingStats ? (
+                  <div className="flex justify-center py-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : documentStats && (
+                  <>
+                    <div className="border-t pt-3 mt-3"></div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Liczba segmentów:</span>
+                      <span className="font-medium text-gray-900">{documentStats.total_segments}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Liczba słów:</span>
+                      <span className="font-medium text-gray-900">{documentStats.total_words}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Liczba znaków:</span>
+                      <span className="font-medium text-gray-900">{documentStats.total_characters}</span>
+                    </div>
+                    {documentStats.estimated_translation_time_minutes && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Szacowany czas:</span>
+                        <span className="font-medium text-gray-900">
+                          ~{documentStats.estimated_translation_time_minutes} min
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

@@ -128,7 +128,7 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
 
         try:
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",  # Sonnet dla jakości tłumaczenia
+                model="claude-3-5-sonnet-20240620",  # Sonnet dla jakości tłumaczenia
                 max_tokens=2000,
                 temperature=0.3,  # Niska temperatura dla konsystencji
                 messages=[{"role": "user", "content": prompt}],
