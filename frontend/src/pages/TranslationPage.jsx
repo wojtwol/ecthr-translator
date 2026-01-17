@@ -27,12 +27,7 @@ const TranslationPage = () => {
   const [view, setView] = useState('split'); // split, glossary, preview
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Auto-start translation if document is newly uploaded
-  useEffect(() => {
-    if (document && document.status === 'uploaded') {
-      handleStartTranslation();
-    }
-  }, [document]);
+  // Remove auto-start - user must click "Translate" button
 
   const handleStartTranslation = async () => {
     try {
@@ -194,14 +189,68 @@ const TranslationPage = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         {translationStatus === 'idle' || translationStatus === 'uploaded' ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <div className="text-6xl mb-4">⏳</div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-              Przygotowanie tłumaczenia...
-            </h2>
-            <p className="text-gray-600">
-              Dokument jest przetwarzany. Tłumaczenie rozpocznie się automatycznie.
-            </p>
+          <div className="bg-white rounded-lg shadow p-8 max-w-2xl mx-auto">
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">📄</div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                Dokument gotowy do tłumaczenia
+              </h2>
+              <p className="text-gray-600">
+                Przejrzyj informacje o dokumencie i rozpocznij tłumaczenie
+              </p>
+            </div>
+
+            {/* Document Statistics */}
+            <div className="bg-gray-50 rounded-lg p-6 mb-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Informacje o dokumencie</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Nazwa pliku:</span>
+                  <span className="font-medium text-gray-900">{document?.filename || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Typ:</span>
+                  <span className="font-medium text-gray-900">DOCX</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Status:</span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Gotowy
+                  </span>
+                </div>
+                {document?.upload_timestamp && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Przesłano:</span>
+                    <span className="font-medium text-gray-900">
+                      {new Date(document.upload_timestamp).toLocaleString('pl-PL')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Translation Config */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start">
+                <div className="text-blue-600 text-xl mr-3">ℹ️</div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Opcje tłumaczenia:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Wykorzystanie pamięci tłumaczeniowej (TM)</li>
+                    <li>Wyszukiwanie w bazie HUDOC i CURIA</li>
+                    <li>Ekstrakcja i walidacja terminologii</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Start Translation Button */}
+            <button
+              onClick={handleStartTranslation}
+              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-lg transition-colors shadow-md hover:shadow-lg"
+            >
+              🚀 Rozpocznij tłumaczenie
+            </button>
           </div>
         ) : translationStatus === 'translating' ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
