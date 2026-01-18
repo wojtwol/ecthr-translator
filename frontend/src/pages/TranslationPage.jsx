@@ -310,14 +310,15 @@ const TranslationPage = () => {
                     <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Zalecany</span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
-                    Dokładne tłumaczenie z kontrolą jakości i walidacją użytkownika
+                    Dokładne tłumaczenie oparte na pamięci tłumaczeniowej z kontrolą jakości i walidacją użytkownika
                   </p>
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li>✓ Wykorzystanie pamięci tłumaczeniowej (TM)</li>
-                    <li>✓ Wyszukiwanie w bazach HUDOC i CURIA</li>
+                    <li>✓ <strong>Pamięć tłumaczeniowa (TM)</strong> jako fundament tłumaczenia</li>
+                    <li>✓ Wzbogacanie terminologii bazami HUDOC i CURIA</li>
                     <li>✓ Ekstrakcja i walidacja terminologii prawniczej</li>
                     <li>✓ Możliwość zatwierdzenia/edycji/odrzucenia terminów</li>
                     <li>✓ Kontrola jakości (QA Review)</li>
+                    <li>✓ Automatyczna aktualizacja TM po zakończeniu</li>
                   </ul>
                 </div>
               </label>
@@ -339,13 +340,14 @@ const TranslationPage = () => {
                     <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">Szybki</span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
-                    Natychmiastowe tłumaczenie z wykorzystaniem istniejącej pamięci tłumaczeniowej
+                    Natychmiastowe tłumaczenie oparte w pełni na pamięci tłumaczeniowej (TM)
                   </p>
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li>✓ Wykorzystanie pamięci tłumaczeniowej (TM)</li>
+                    <li>✓ <strong>Pamięć tłumaczeniowa (TM)</strong> jako główne źródło tłumaczenia</li>
+                    <li>✓ Opcjonalne wzbogacanie o HUDOC/CURIA (poniżej)</li>
                     <li>✓ Automatyczne tłumaczenie bez ekstrakcji terminów</li>
                     <li>✓ Brak etapu walidacji - gotowy dokument od razu</li>
-                    <li>✓ Automatyczna aktualizacja pamięci tłumaczeniowej</li>
+                    <li>✓ Automatyczna aktualizacja TM po zakończeniu</li>
                     <li>⚠ Brak kontroli jakości i walidacji terminologii</li>
                   </ul>
                 </div>
@@ -354,7 +356,7 @@ const TranslationPage = () => {
               {/* Optional HUDOC/CURIA for Quick Mode */}
               {workflowMode === 'quick' && (
                 <div className="mt-3 ml-9 pl-4 border-l-2 border-gray-300">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Opcjonalne źródła terminologii:</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Opcjonalne wzbogacenie TM o dodatkowe źródła:</p>
                   <div className="space-y-2">
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -364,7 +366,7 @@ const TranslationPage = () => {
                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                       />
                       <span className="ml-2 text-sm text-gray-700">
-                        Wyszukiwanie w bazie HUDOC (orzeczenia ETPCz)
+                        + HUDOC (orzeczenia ETPCz)
                       </span>
                     </label>
                     <label className="flex items-center cursor-pointer">
@@ -375,12 +377,12 @@ const TranslationPage = () => {
                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                       />
                       <span className="ml-2 text-sm text-gray-700">
-                        Wyszukiwanie w bazie CURIA (orzeczenia TSUE)
+                        + CURIA (orzeczenia TSUE)
                       </span>
                     </label>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    💡 Włączenie wyszukiwania w bazach może poprawić jakość terminologii, ale wydłuży czas tłumaczenia
+                    💡 TM jest zawsze używana jako baza. Dodatkowe źródła mogą poprawić jakość terminologii, ale wydłużą czas tłumaczenia
                   </p>
                 </div>
               )}
