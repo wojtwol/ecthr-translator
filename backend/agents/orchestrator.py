@@ -169,7 +169,7 @@ class Orchestrator:
         Args:
             document_id: ID dokumentu
             source_path: Ścieżka do pliku źródłowego
-            on_batch_ready: Callback wywoływany dla każdego batcha: on_batch_ready(terms, segments, is_last)
+            on_batch_ready: Callback wywoływany dla każdego batcha: on_batch_ready(terms, segments, is_last, batch_idx, total_batches)
             batch_size: Liczba segmentów w batchu
 
         Returns:
@@ -247,7 +247,7 @@ class Orchestrator:
                 # Wywołaj callback z batchem terminów
                 if on_batch_ready and batch_terms:
                     try:
-                        await on_batch_ready(batch_terms, translated_batch, is_last_batch)
+                        await on_batch_ready(batch_terms, translated_batch, is_last_batch, batch_idx + 1, num_batches)
                     except Exception as e:
                         logger.error(f"Error in batch callback: {e}", exc_info=True)
 

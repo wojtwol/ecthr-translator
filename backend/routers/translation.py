@@ -331,15 +331,25 @@ async def _run_translation(
             segment_offset = 0  # Track how many segments we've saved
 
             # Define batch callback - saves terms and segments progressively
-            async def on_batch_ready(batch_terms, batch_segments, is_last):
+            async def on_batch_ready(batch_terms, batch_segments, is_last, batch_num, total_batches):
                 nonlocal segment_offset
 
                 from db.database import SessionLocal
                 batch_db = SessionLocal()
 
                 try:
+                    # Calculate and send progress update
+                    # Progress from 0.3 (start) to 0.9 (ready for validation)
+                    progress = 0.3 + (batch_num / total_batches) * 0.6
+                    await ws_manager.broadcast_progress(
+                        document_id,
+                        "translating",
+                        progress,
+                        f"Processing batch {batch_num}/{total_batches}..."
+                    )
+
                     # Save terms from this batch
-                    logger.info(f"[Job {job_id}] Batch ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
+                    logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
 
                     for term_data in batch_terms:
                         db_term = models.Term(
@@ -381,12 +391,14 @@ async def _run_translation(
                                 "terms_count": len(batch_terms),
                                 "segments_count": len(batch_segments),
                                 "is_last": is_last,
+                                "batch_num": batch_num,
+                                "total_batches": total_batches,
                             }
                         },
                         document_id
                     )
 
-                    logger.info(f"[Job {job_id}] Batch saved: {len(batch_terms)} terms, {len(batch_segments)} segments")
+                    logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} saved: {len(batch_terms)} terms, {len(batch_segments)} segments")
 
                 except Exception as e:
                     logger.error(f"Error in batch callback: {e}", exc_info=True)
