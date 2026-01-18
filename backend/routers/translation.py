@@ -409,7 +409,7 @@ async def _run_translation(
             # Phase 2-4: Progressive extraction, research, translation
             await ws_manager.broadcast_progress(
                 document_id, "term_extraction", 0.3,
-                "Extracting and translating in batches - you can start validating!"
+                "Starting batch processing... First batch of terms will be ready soon!"
             )
             job.phase = TranslationPhase.TERM_EXTRACTION
             job.progress = 0.3
