@@ -235,6 +235,7 @@ export const useTranslation = (documentId) => {
               console.log(`Batch ready: ${message.data.terms_count} terms, ${message.data.segments_count} segments`);
               setTranslationStatus('validating'); // Allow user to start validating
               fetchTerms(); // Refresh terms list to show new batch
+              fetchSegments(); // Fetch segments to show live preview
               if (!message.data.is_last) {
                 setProgress({
                   stage: 'batch_extraction',
