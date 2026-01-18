@@ -161,6 +161,12 @@ export const useTranslation = (documentId) => {
 
       ws.onmessage = (event) => {
         try {
+          // Ignore pong responses (plain text, not JSON)
+          if (event.data === 'pong') {
+            console.log('Received keepalive pong');
+            return;
+          }
+
           const message = JSON.parse(event.data);
 
           switch (message.type) {
