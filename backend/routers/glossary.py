@@ -72,7 +72,7 @@ async def get_glossary(
             "original_proposal": t.original_proposal,
             "source_type": t.source_type,
             "confidence": t.confidence,
-            "references": t.references,
+            "references": [],  # Database stores as dict, but Pydantic expects list - context extracted separately
             "status": t.status,
             "context": t.references.get("context") if t.references else None,
             "sources": [],
@@ -131,7 +131,7 @@ async def update_term(document_id: str, term_id: str, update: TermUpdate, db: Se
         original_proposal=term.original_proposal,
         source_type=term.source_type,
         confidence=term.confidence,
-        references=term.references,
+        references=[],  # Database stores as dict, but Pydantic expects list - context extracted separately
         status=term.status,
         context=term.references.get("context") if term.references else None,
         sources=[],
