@@ -12,17 +12,33 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     fetchTerms();
   }, [documentId, filter, currentPage]);
 
-  const fetchTerms = async () => {
+  const fetchTerms = async (retryCount = 0) => {
     setLoading(true);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for cold start
+
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
       const data = await response.json();
       setTerms(data.terms);
       setStats(data.stats);
     } catch (error) {
       console.error('Failed to fetch terms:', error);
+
+      // Retry once after 3 seconds if first attempt failed (backend cold start)
+      if (retryCount === 0 && (error.name === 'AbortError' || error.message.includes('fetch'))) {
+        console.log('Retrying terms fetch after backend cold start...');
+        setTimeout(() => fetchTerms(1), 3000);
+      }
     } finally {
       setLoading(false);
     }
