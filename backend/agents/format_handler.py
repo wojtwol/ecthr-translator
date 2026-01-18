@@ -97,12 +97,53 @@ class FormatHandler:
             # Apply document-level styles (simplified for Sprint 1)
             # Full style restoration will be in Sprint 2
 
-            # Reconstruct paragraphs
+            # Group segments by type for reconstruction
+            table_segments = {}
+
+            # Reconstruct segments
             for segment in translated_segments:
-                if segment["parent_type"] == "paragraph":
+                # Get translated text with fallbacks
+                translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+
+                parent_type = segment.get("parent_type", "paragraph")
+
+                if parent_type == "paragraph":
                     para = doc.add_paragraph()
-                    para.text = segment.get("text", "")
+                    para.text = translated_text
                     self._apply_paragraph_format(para, segment.get("format", {}))
+
+                elif parent_type == "table_cell":
+                    # Store table segments for later reconstruction
+                    table_pos = segment.get("table_position", {})
+                    table_idx = table_pos.get("table", 0)
+
+                    if table_idx not in table_segments:
+                        table_segments[table_idx] = []
+                    table_segments[table_idx].append(segment)
+
+            # Reconstruct tables (simplified - creates new tables)
+            for table_idx in sorted(table_segments.keys()):
+                segments_in_table = table_segments[table_idx]
+                if not segments_in_table:
+                    continue
+
+                # Find max row/col to create table
+                max_row = max(s.get("table_position", {}).get("row", 0) for s in segments_in_table)
+                max_col = max(s.get("table_position", {}).get("col", 0) for s in segments_in_table)
+
+                # Create table
+                table = doc.add_table(rows=max_row + 1, cols=max_col + 1)
+                table.style = 'Table Grid'
+
+                # Fill table cells
+                for segment in segments_in_table:
+                    table_pos = segment.get("table_position", {})
+                    row = table_pos.get("row", 0)
+                    col = table_pos.get("col", 0)
+                    translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+
+                    if row < len(table.rows) and col < len(table.rows[row].cells):
+                        table.rows[row].cells[col].text = translated_text
 
             # Save document
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
