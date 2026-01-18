@@ -80,6 +80,33 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     }
   };
 
+  const handleQuickAction = async (term, action, e) => {
+    e.stopPropagation(); // Prevent opening modal
+
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${term.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_term: term.target_term,
+            status: action, // 'approved' or 'rejected'
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      fetchTerms(); // Refresh list
+    } catch (error) {
+      console.error(`Failed to ${action} term:`, error);
+      alert(`Nie udało się ${action === 'approved' ? 'zatwierdzić' : 'odrzucić'} terminu`);
+    }
+  };
+
   if (loading && !stats) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
@@ -149,10 +176,9 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
           terms.map((term) => (
             <div
               key={term.id}
-              onClick={() => onTermSelect && onTermSelect(term)}
-              className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+              className="p-4 hover:bg-gray-50 transition-colors"
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-medium text-gray-900">
@@ -184,9 +210,36 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
                   )}
                 </div>
 
-                <span className={`ml-4 px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${getStatusBadge(term.status)}`}>
-                  {getStatusLabel(term.status)}
-                </span>
+                <div className="flex items-center gap-2">
+                  {term.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={(e) => handleQuickAction(term, 'approved', e)}
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
+                        title="Zatwierdź"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={(e) => handleQuickAction(term, 'rejected', e)}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium"
+                        title="Odrzuć"
+                      >
+                        ✗
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => onTermSelect && onTermSelect(term)}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
+                    title="Edytuj"
+                  >
+                    ✎
+                  </button>
+                  <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${getStatusBadge(term.status)}`}>
+                    {getStatusLabel(term.status)}
+                  </span>
+                </div>
               </div>
             </div>
           ))
