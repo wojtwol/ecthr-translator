@@ -91,6 +91,7 @@ class ConnectionManager:
         translation_id: str,
     ):
         """Broadcast translation completion."""
+        logger.info(f"Broadcasting translation_complete for document {document_id}, job {translation_id}")
         await self.send_message(
             {
                 "type": "translation_complete",
@@ -98,6 +99,7 @@ class ConnectionManager:
             },
             document_id,
         )
+        logger.info(f"translation_complete message sent for document {document_id}")
 
     async def broadcast_error(
         self,
