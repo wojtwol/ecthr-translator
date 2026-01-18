@@ -31,10 +31,15 @@ Kontekst (poprzednie przetłumaczone segmenty):
 
 Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć tylko tłumaczenie."""
 
-    def __init__(self):
-        """Inicjalizacja Translator."""
+    def __init__(self, on_segment_translated=None):
+        """Inicjalizacja Translator.
+
+        Args:
+            on_segment_translated: Optional callback called after each segment translation
+        """
         self.client = Anthropic(api_key=settings.anthropic_api_key)
         self.translation_context = []  # Kontekst ostatnich tłumaczeń
+        self.on_segment_translated = on_segment_translated
         logger.info("Translator initialized")
 
     async def translate(
@@ -86,6 +91,13 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
                 logger.debug(
                     f"Segment {i} translated: {source_text[:50]}... -> {target_text[:50]}..."
                 )
+
+                # Callback dla live updates
+                if self.on_segment_translated:
+                    try:
+                        await self.on_segment_translated(i, len(segments), segment)
+                    except Exception as e:
+                        logger.error(f"Error in segment callback: {e}")
 
             except Exception as e:
                 logger.error(f"Error translating segment {i}: {e}")

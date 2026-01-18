@@ -270,7 +270,7 @@ class Orchestrator:
             )
 
     async def process_quick(
-        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False
+        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False, on_segment_translated=None
     ) -> TranslationResult:
         """
         Quick translation workflow - uses TM + optionally HUDOC/CURIA, without term extraction and validation.
@@ -360,12 +360,15 @@ class Orchestrator:
 
             # Faza 4: Tłumaczenie
             logger.info("Phase 4: Translating with TM terminology")
-            translated_segments = await self.translator.translate(
+
+            # Create translator with callback for live updates
+            translator = Translator(on_segment_translated=on_segment_translated)
+            translated_segments = await translator.translate(
                 parsed_segments, terminology
             )
 
             logger.info(
-                f"Translation complete. Stats: {self.translator.get_translation_stats(translated_segments)}"
+                f"Translation complete. Stats: {translator.get_translation_stats(translated_segments)}"
             )
 
             # Faza 5: Rekonstrukcja DOCX (bez QA review)

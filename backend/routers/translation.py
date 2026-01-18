@@ -258,12 +258,28 @@ async def _run_translation(
             job.progress = 0.5
             db.commit()
 
+            # Callback for live translation updates
+            async def on_segment_translated_callback(segment_idx, total_segments, segment):
+                progress_pct = 0.5 + (segment_idx + 1) / total_segments * 0.4  # 50% to 90%
+                await ws_manager.send_message(
+                    {
+                        "type": "segment_translated",
+                        "segment_index": segment_idx,
+                        "total_segments": total_segments,
+                        "source_text": segment.get("text", ""),
+                        "target_text": segment.get("target_text", ""),
+                        "progress": progress_pct
+                    },
+                    document_id
+                )
+
             # Run quick orchestrator
             result = await orch.process_quick(
                 document_id,
                 source_path,
                 use_hudoc=config.use_hudoc,
-                use_curia=config.use_curia
+                use_curia=config.use_curia,
+                on_segment_translated=on_segment_translated_callback
             )
 
             if result.status == "error":

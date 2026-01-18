@@ -11,6 +11,7 @@ export const useTranslation = (documentId) => {
   const [progress, setProgress] = useState({ stage: '', progress: 0, message: '' });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [translatedSegments, setTranslatedSegments] = useState([]); // Live segments during translation
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -165,6 +166,24 @@ export const useTranslation = (documentId) => {
               fetchTerms(); // Refresh to update stats
               break;
 
+            case 'segment_translated':
+              // Live segment translation update
+              setTranslatedSegments((prevSegments) => {
+                const newSegments = [...prevSegments];
+                newSegments[message.segment_index] = {
+                  index: message.segment_index,
+                  source: message.source_text,
+                  target: message.target_text
+                };
+                return newSegments;
+              });
+              setProgress({
+                stage: 'translating',
+                progress: message.progress,
+                message: `Translating segment ${message.segment_index + 1}/${message.total_segments}...`,
+              });
+              break;
+
             case 'batch_ready':
               // New batch of terms is ready for validation
               console.log(`Batch ready: ${message.data.terms_count} terms, ${message.data.segments_count} segments`);
@@ -253,6 +272,7 @@ export const useTranslation = (documentId) => {
     progress,
     error,
     loading,
+    translatedSegments,
     startTranslation,
     finalizeTranslation,
     updateTerm,

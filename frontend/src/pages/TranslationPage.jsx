@@ -17,6 +17,7 @@ const TranslationPage = () => {
     progress,
     error,
     loading,
+    translatedSegments,
     startTranslation,
     finalizeTranslation,
     updateTerm,
@@ -394,16 +395,75 @@ const TranslationPage = () => {
             </button>
           </div>
         ) : translationStatus === 'translating' ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-              Tłumaczenie w toku
-            </h2>
-            <p className="text-gray-600 mb-4">
-              {progress.stage || 'Przetwarzanie dokumentu...'}
-            </p>
-            {progress.message && (
-              <p className="text-sm text-gray-500">{progress.message}</p>
+          <div className="space-y-4">
+            {/* Progress Bar */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Tłumaczenie w toku
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {progress.message || 'Przetwarzanie dokumentu...'}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-2xl font-bold text-blue-600">
+                  {Math.round((progress.progress || 0) * 100)}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${(progress.progress || 0) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Live Translation Preview - Two Columns */}
+            {translatedSegments.length > 0 && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Podgląd tłumaczenia na żywo
+                </h3>
+                <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {/* Left Column - Source (EN) */}
+                  <div className="border-r border-gray-200 pr-4">
+                    <div className="sticky top-0 bg-white pb-2 mb-2 border-b border-gray-300">
+                      <h4 className="font-semibold text-sm text-gray-700">Tekst źródłowy (EN)</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {translatedSegments.map((segment, idx) => (
+                        segment && (
+                          <div key={idx} className="text-sm text-gray-800 p-2 bg-gray-50 rounded">
+                            <span className="text-xs text-gray-500 font-medium mr-2">[{idx + 1}]</span>
+                            {segment.source}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Target (PL) */}
+                  <div className="pl-4">
+                    <div className="sticky top-0 bg-white pb-2 mb-2 border-b border-gray-300">
+                      <h4 className="font-semibold text-sm text-blue-700">Tłumaczenie (PL)</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {translatedSegments.map((segment, idx) => (
+                        segment && (
+                          <div key={idx} className="text-sm text-gray-900 p-2 bg-blue-50 rounded border-l-2 border-blue-500">
+                            <span className="text-xs text-blue-600 font-medium mr-2">[{idx + 1}]</span>
+                            {segment.target}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         ) : translationStatus === 'error' ? (
