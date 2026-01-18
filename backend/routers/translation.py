@@ -297,8 +297,8 @@ async def _run_translation(
             logger.info(f"[Job {job_id}] Quick translation completed")
 
         else:
-            # ============= FULL WORKFLOW (with validation) =============
-            logger.info(f"[Job {job_id}] Starting FULL workflow (with term validation)")
+            # ============= FULL WORKFLOW (with BATCH validation) =============
+            logger.info(f"[Job {job_id}] Starting FULL workflow with progressive batch validation")
 
             # Phase 1: Analysis
             await ws_manager.broadcast_progress(document_id, "analysis", 0.1, "Analyzing document structure")
@@ -306,68 +306,92 @@ async def _run_translation(
             job.progress = 0.1
             db.commit()
 
-            # Phase 2: Term Extraction
-            await ws_manager.broadcast_progress(document_id, "term_extraction", 0.3, "Extracting terminology")
+            # Track total segments for progress calculation
+            segment_offset = 0  # Track how many segments we've saved
+
+            # Define batch callback - saves terms and segments progressively
+            async def on_batch_ready(batch_terms, batch_segments, is_last):
+                nonlocal segment_offset
+
+                from db.database import SessionLocal
+                batch_db = SessionLocal()
+
+                try:
+                    # Save terms from this batch
+                    logger.info(f"[Job {job_id}] Batch ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
+
+                    for term_data in batch_terms:
+                        db_term = models.Term(
+                            id=str(uuid.uuid4()),
+                            document_id=document_id,
+                            source_term=term_data.get("source_term", ""),
+                            target_term=term_data.get("proposed_translation", ""),
+                            original_proposal=term_data.get("proposed_translation", ""),
+                            context=term_data.get("context", ""),
+                            hudoc_reference=term_data.get("hudoc_reference"),
+                            curia_reference=term_data.get("curia_reference"),
+                            confidence_score=term_data.get("confidence_score", 0.0),
+                            status="pending",
+                        )
+                        batch_db.add(db_term)
+
+                    # Save segments from this batch
+                    for idx, segment_data in enumerate(batch_segments):
+                        db_segment = models.Segment(
+                            id=str(uuid.uuid4()),
+                            document_id=document_id,
+                            index=segment_offset + idx,
+                            source_text=segment_data.get("text", ""),
+                            target_text=segment_data.get("target_text", ""),
+                            section_type=segment_data.get("section_type", "other"),
+                            format_metadata=segment_data.get("formatting", {}),
+                            status="translated",
+                        )
+                        batch_db.add(db_segment)
+
+                    batch_db.commit()
+                    segment_offset += len(batch_segments)
+
+                    # Notify frontend about new terms available for validation
+                    await ws_manager.send_message(
+                        {
+                            "type": "batch_ready",
+                            "data": {
+                                "terms_count": len(batch_terms),
+                                "segments_count": len(batch_segments),
+                                "is_last": is_last,
+                            }
+                        },
+                        document_id
+                    )
+
+                    logger.info(f"[Job {job_id}] Batch saved: {len(batch_terms)} terms, {len(batch_segments)} segments")
+
+                except Exception as e:
+                    logger.error(f"Error in batch callback: {e}", exc_info=True)
+                    batch_db.rollback()
+                finally:
+                    batch_db.close()
+
+            # Phase 2-4: Progressive extraction, research, translation
+            await ws_manager.broadcast_progress(
+                document_id, "term_extraction", 0.3,
+                "Extracting and translating in batches - you can start validating!"
+            )
             job.phase = TranslationPhase.TERM_EXTRACTION
             job.progress = 0.3
             db.commit()
 
-            # Phase 3: External Research
-            if config.use_hudoc or config.use_curia:
-                await ws_manager.broadcast_progress(document_id, "research", 0.5, "Searching HUDOC and CURIA")
-                job.phase = TranslationPhase.RESEARCH
-                job.progress = 0.5
-                db.commit()
-
-            # Phase 4: Translation
-            await ws_manager.broadcast_progress(document_id, "translating", 0.7, "Translating segments")
-            job.phase = TranslationPhase.TRANSLATING
-            job.progress = 0.7
-            db.commit()
-
-            # Run orchestrator
-            result = await orch.process(document_id, source_path)
+            # Run orchestrator in BATCH mode
+            result = await orch.process_in_batches(
+                document_id,
+                source_path,
+                on_batch_ready=on_batch_ready,
+                batch_size=10  # Process 10 segments at a time
+            )
 
             if result.status == "error":
                 raise Exception(result.error)
-
-            # Save extracted terms to database for user validation
-            logger.info(f"[Job {job_id}] Saving {len(result.terms)} terms to database")
-            for term_data in result.terms:
-                db_term = models.Term(
-                    id=str(uuid.uuid4()),
-                    document_id=document_id,
-                    source_term=term_data.get("source_term", ""),
-                    target_term=term_data.get("proposed_translation", ""),
-                    original_proposal=term_data.get("proposed_translation", ""),
-                    context=term_data.get("context", ""),
-                    hudoc_reference=term_data.get("hudoc_reference"),
-                    curia_reference=term_data.get("curia_reference"),
-                    confidence_score=term_data.get("confidence_score", 0.0),
-                    status="pending",  # User needs to validate
-                )
-                db.add(db_term)
-
-            db.commit()
-            logger.info(f"[Job {job_id}] Saved {len(result.terms)} terms for validation")
-
-            # Save translated segments to database
-            logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments to database")
-            for idx, segment_data in enumerate(result.segments):
-                db_segment = models.Segment(
-                    id=str(uuid.uuid4()),
-                    document_id=document_id,
-                    index=idx,
-                    source_text=segment_data.get("text", ""),
-                    target_text=segment_data.get("target_text", ""),
-                    section_type=segment_data.get("section_type", "other"),
-                    format_metadata=segment_data.get("formatting", {}),
-                    status="translated",
-                )
-                db.add(db_segment)
-
-            db.commit()
-            logger.info(f"[Job {job_id}] Saved {len(result.segments)} segments")
 
             # Move to validation phase
             job.status = TranslationJobStatus.AWAITING_VALIDATION
@@ -380,13 +404,14 @@ async def _run_translation(
             db.commit()
 
             await ws_manager.broadcast_progress(
-                document_id, "validation", 0.9, "Translation complete. Please validate terms."
+                document_id, "validation", 0.9,
+                f"Translation complete. {len(result.terms)} terms ready for validation."
             )
 
             # Notify frontend that translation is complete and ready for validation
             await ws_manager.broadcast_translation_complete(document_id, job_id)
 
-            logger.info(f"[Job {job_id}] Translation complete, awaiting validation")
+            logger.info(f"[Job {job_id}] Batch translation complete, awaiting validation")
 
     except Exception as e:
         logger.error(f"[Job {job_id}] Translation failed: {e}", exc_info=True)

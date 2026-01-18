@@ -385,8 +385,28 @@ const TranslationPage = () => {
             </button>
           </div>
         ) : (
-          <div className={`grid gap-6 ${view === 'split' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {/* Glossary Panel */}
+          <>
+            {/* Batch Extraction Progress Banner */}
+            {progress.stage === 'batch_extraction' && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-blue-800">
+                      {progress.message || 'Ekstrakcja kolejnych terminów w tle...'}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      💡 Możesz już zacząć walidować dostępne terminy - nowe będą pojawiać się automatycznie
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className={`grid gap-6 ${view === 'split' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {/* Glossary Panel */}
             {(view === 'split' || view === 'glossary') && (
               <div className={view === 'glossary' ? 'max-w-4xl mx-auto w-full' : ''}>
                 <GlossaryPanel
@@ -408,7 +428,8 @@ const TranslationPage = () => {
                 />
               </div>
             )}
-          </div>
+            </div>
+          </>
         )}
       </main>
 

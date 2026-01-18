@@ -151,6 +151,124 @@ class Orchestrator:
                 status="error", document_id=document_id, error=str(e)
             )
 
+    async def process_in_batches(
+        self,
+        document_id: str,
+        source_path: str,
+        on_batch_ready=None,
+        batch_size: int = 10,
+    ):
+        """
+        Przetwarza dokument w batchach - progresywna ekstrakcja terminów.
+
+        Workflow:
+        1. Ekstraktuje i przetwarza BATCH_SIZE segmentów
+        2. Wywołuje callback on_batch_ready() z terminami do walidacji
+        3. Użytkownik może walidować terminy z batcha 1 podczas gdy system przetwarza batch 2
+
+        Args:
+            document_id: ID dokumentu
+            source_path: Ścieżka do pliku źródłowego
+            on_batch_ready: Callback wywoływany dla każdego batcha: on_batch_ready(terms, segments, is_last)
+            batch_size: Liczba segmentów w batchu
+
+        Returns:
+            TranslationResult z wszystkimi segmentami
+        """
+        try:
+            logger.info(f"Starting BATCH translation for document {document_id} (batch_size={batch_size})")
+
+            # Faza 1: Ekstrakcja formatów
+            logger.info("Phase 1: Extracting document structure")
+            extracted = self.format_handler.extract(source_path)
+            all_segments = extracted["segments"]
+            document_metadata = extracted["document_metadata"]
+
+            if not all_segments:
+                return TranslationResult(
+                    status="error",
+                    document_id=document_id,
+                    error="No segments extracted from document",
+                )
+
+            logger.info(f"Extracted {len(all_segments)} segments, processing in batches of {batch_size}")
+
+            # Faza 2: Analiza struktury wszystkich segmentów
+            logger.info("Phase 2: Parsing structure")
+            parsed_segments = await self.structure_parser.parse(all_segments)
+
+            # Przygotuj znane terminy z TM
+            known_terms = []
+            for segment in parsed_segments:
+                tm_match = self.tm_manager.find_exact(segment.get("text", ""))
+                if tm_match:
+                    known_terms.append(
+                        {"source": tm_match.source, "target": tm_match.target}
+                    )
+
+            # Przygotuj terminologię bazową z TM
+            base_terminology = {}
+            for term in known_terms[:50]:
+                base_terminology[term["source"]] = term["target"]
+
+            # Przetwarzaj segmenty w batchach
+            all_translated_segments = []
+            all_extracted_terms = []
+
+            num_batches = (len(parsed_segments) + batch_size - 1) // batch_size
+
+            for batch_idx in range(num_batches):
+                start_idx = batch_idx * batch_size
+                end_idx = min(start_idx + batch_size, len(parsed_segments))
+                batch_segments = parsed_segments[start_idx:end_idx]
+                is_last_batch = (batch_idx == num_batches - 1)
+
+                logger.info(f"Processing batch {batch_idx + 1}/{num_batches} (segments {start_idx}-{end_idx})")
+
+                # Faza 3: Ekstrakcja terminów dla tego batcha
+                batch_terms = await self.term_extractor.extract(batch_segments, known_terms)
+                all_extracted_terms.extend(batch_terms)
+
+                logger.info(f"Batch {batch_idx + 1}: Extracted {len(batch_terms)} terms")
+
+                # Przygotuj terminologię dla tego batcha
+                batch_terminology = base_terminology.copy()
+                for term in batch_terms[:30]:
+                    batch_terminology[term["source_term"]] = term["proposed_translation"]
+
+                # Faza 4: Tłumaczenie tego batcha
+                translated_batch = await self.translator.translate(
+                    batch_segments, batch_terminology
+                )
+                all_translated_segments.extend(translated_batch)
+
+                logger.info(f"Batch {batch_idx + 1}: Translated {len(translated_batch)} segments")
+
+                # Wywołaj callback z batchem terminów
+                if on_batch_ready and batch_terms:
+                    try:
+                        await on_batch_ready(batch_terms, translated_batch, is_last_batch)
+                    except Exception as e:
+                        logger.error(f"Error in batch callback: {e}", exc_info=True)
+
+            logger.info(
+                f"Batch processing complete. Total: {len(all_translated_segments)} segments, "
+                f"{len(all_extracted_terms)} terms"
+            )
+
+            return TranslationResult(
+                status="awaiting_validation",
+                document_id=document_id,
+                segments=all_translated_segments,
+                terms=all_extracted_terms,
+            )
+
+        except Exception as e:
+            logger.error(f"Error in batch processing: {e}", exc_info=True)
+            return TranslationResult(
+                status="error", document_id=document_id, error=str(e)
+            )
+
     async def process_quick(
         self, document_id: str, source_path: str
     ) -> TranslationResult:

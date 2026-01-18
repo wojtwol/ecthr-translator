@@ -165,6 +165,20 @@ export const useTranslation = (documentId) => {
               fetchTerms(); // Refresh to update stats
               break;
 
+            case 'batch_ready':
+              // New batch of terms is ready for validation
+              console.log(`Batch ready: ${message.data.terms_count} terms, ${message.data.segments_count} segments`);
+              setTranslationStatus('validating'); // Allow user to start validating
+              fetchTerms(); // Refresh terms list to show new batch
+              if (!message.data.is_last) {
+                setProgress({
+                  stage: 'batch_extraction',
+                  progress: 0.5,
+                  message: `New batch ready! ${message.data.terms_count} terms available. Extraction continues in background...`,
+                });
+              }
+              break;
+
             case 'translation_complete':
               setTranslationStatus('validating');
               fetchDocument();
