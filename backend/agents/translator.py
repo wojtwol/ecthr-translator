@@ -31,16 +31,18 @@ Kontekst (poprzednie przetłumaczone segmenty):
 
 Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć tylko tłumaczenie."""
 
-    def __init__(self, on_segment_translated=None):
+    def __init__(self, tm_manager=None, on_segment_translated=None):
         """Inicjalizacja Translator.
 
         Args:
+            tm_manager: Translation Memory Manager for segment reuse
             on_segment_translated: Optional callback called after each segment translation
         """
         self.client = Anthropic(api_key=settings.anthropic_api_key)
+        self.tm_manager = tm_manager
         self.translation_context = []  # Kontekst ostatnich tłumaczeń
         self.on_segment_translated = on_segment_translated
-        logger.info("Translator initialized")
+        logger.info("Translator initialized with TM support" if tm_manager else "Translator initialized without TM")
 
     async def translate(
         self,
@@ -67,18 +69,43 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
                 # Pomiń puste segmenty
                 if not source_text.strip():
                     segment["target_text"] = ""
+                    segment["tm_match_type"] = "empty"
                     translated_segments.append(segment)
                     continue
 
-                # Tłumacz segment
-                target_text = await self._translate_segment(
-                    source_text=source_text,
-                    section_type=segment.get("section_type", "OTHER"),
-                    terminology=terminology,
-                )
+                # === KROK 1: Sprawdź TM dla exact match ===
+                target_text = None
+                match_type = "new"  # new, exact, fuzzy, or api
 
-                # Dodaj tłumaczenie
+                if self.tm_manager:
+                    # Exact match
+                    exact_match = self.tm_manager.find_exact(source_text)
+                    if exact_match:
+                        target_text = exact_match.target
+                        match_type = "exact"
+                        logger.info(f"Segment {i}: TM EXACT MATCH reused (100%)")
+                    else:
+                        # Fuzzy match (threshold 95%)
+                        fuzzy_matches = self.tm_manager.find_fuzzy(source_text, threshold=0.95)
+                        if fuzzy_matches:
+                            best_match, similarity = fuzzy_matches[0]
+                            target_text = best_match.target
+                            match_type = f"fuzzy_{int(similarity * 100)}"
+                            logger.info(f"Segment {i}: TM FUZZY MATCH reused ({int(similarity * 100)}%)")
+
+                # === KROK 2: Jeśli brak dopasowania w TM, tłumacz przez API ===
+                if target_text is None:
+                    target_text = await self._translate_segment(
+                        source_text=source_text,
+                        section_type=segment.get("section_type", "OTHER"),
+                        terminology=terminology,
+                    )
+                    match_type = "api"
+                    logger.debug(f"Segment {i}: Translated via Claude API")
+
+                # Dodaj tłumaczenie i metadata
                 segment["target_text"] = target_text
+                segment["tm_match_type"] = match_type
                 translated_segments.append(segment)
 
                 # Aktualizuj kontekst (ostatnie 3 segmenty)
@@ -257,9 +284,22 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
             if s.get("target_text", "").startswith(("[BŁĄD", "[WYMAGANE"))
         )
 
+        # TM usage statistics
+        tm_exact_matches = sum(1 for s in segments if s.get("tm_match_type") == "exact")
+        tm_fuzzy_matches = sum(1 for s in segments if s.get("tm_match_type", "").startswith("fuzzy_"))
+        api_translations = sum(1 for s in segments if s.get("tm_match_type") == "api")
+
+        tm_total_reused = tm_exact_matches + tm_fuzzy_matches
+        tm_reuse_rate = tm_total_reused / total if total > 0 else 0.0
+
         return {
             "total_segments": total,
             "translated": translated,
             "errors": errors,
             "success_rate": translated / total if total > 0 else 0.0,
+            "tm_exact_matches": tm_exact_matches,
+            "tm_fuzzy_matches": tm_fuzzy_matches,
+            "api_translations": api_translations,
+            "tm_reuse_rate": tm_reuse_rate,
+            "tm_savings_pct": int(tm_reuse_rate * 100),
         }

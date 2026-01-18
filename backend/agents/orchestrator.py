@@ -45,7 +45,7 @@ class Orchestrator:
         self.structure_parser = StructureParser()
         self.tm_manager = TMManager()
         self.term_extractor = TermExtractor()
-        self.translator = Translator()
+        self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
         self.qa_reviewer = QAReviewer()
 
@@ -361,8 +361,8 @@ class Orchestrator:
             # Faza 4: Tłumaczenie
             logger.info("Phase 4: Translating with TM terminology")
 
-            # Create translator with callback for live updates
-            translator = Translator(on_segment_translated=on_segment_translated)
+            # Create translator with TM support and callback for live updates
+            translator = Translator(tm_manager=self.tm_manager, on_segment_translated=on_segment_translated)
             translated_segments = await translator.translate(
                 parsed_segments, terminology
             )
