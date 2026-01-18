@@ -151,6 +151,119 @@ class Orchestrator:
                 status="error", document_id=document_id, error=str(e)
             )
 
+    async def process_quick(
+        self, document_id: str, source_path: str
+    ) -> TranslationResult:
+        """
+        Quick translation workflow - uses only TM without term extraction and validation.
+
+        This mode:
+        - Extracts document structure
+        - Uses Translation Memory for terminology
+        - Translates directly
+        - Skips term extraction and user validation
+        - Completes immediately with final DOCX
+
+        Args:
+            document_id: ID dokumentu
+            source_path: Ścieżka do pliku źródłowego
+
+        Returns:
+            TranslationResult with completed translation
+        """
+        try:
+            logger.info(f"Starting QUICK translation for document {document_id}")
+
+            # Faza 1: Ekstrakcja formatów
+            logger.info("Phase 1: Extracting document structure")
+            extracted = self.format_handler.extract(source_path)
+            segments = extracted["segments"]
+            document_metadata = extracted["document_metadata"]
+
+            if not segments:
+                return TranslationResult(
+                    status="error",
+                    document_id=document_id,
+                    error="No segments extracted from document",
+                )
+
+            logger.info(f"Extracted {len(segments)} segments")
+
+            # Faza 2: Analiza struktury
+            logger.info("Phase 2: Parsing structure")
+            parsed_segments = await self.structure_parser.parse(segments)
+
+            # Faza 3: Przygotuj terminologię TYLKO z TM (bez ekstrakcji nowych terminów)
+            logger.info("Phase 3: Loading terminology from TM only (no extraction)")
+            terminology = {}
+
+            # Zbierz znane terminy z TM dla każdego segmentu
+            for segment in parsed_segments:
+                tm_match = self.tm_manager.find_exact(segment.get("text", ""))
+                if tm_match:
+                    terminology[tm_match.source] = tm_match.target
+
+            logger.info(f"Loaded {len(terminology)} terms from Translation Memory")
+
+            # Faza 4: Tłumaczenie
+            logger.info("Phase 4: Translating with TM terminology")
+            translated_segments = await self.translator.translate(
+                parsed_segments, terminology
+            )
+
+            logger.info(
+                f"Translation complete. Stats: {self.translator.get_translation_stats(translated_segments)}"
+            )
+
+            # Faza 5: Rekonstrukcja DOCX (bez QA review)
+            logger.info("Phase 5: Reconstructing DOCX")
+            output_path = settings.output_path / f"{document_id}_translated.docx"
+            self.format_handler.reconstruct(
+                translated_segments, document_metadata, str(output_path)
+            )
+
+            # Faza 6: Automatyczny update TM ze wszystkich segmentów
+            logger.info("Phase 6: Updating Translation Memory")
+            tm_updated_count = 0
+
+            for segment in translated_segments:
+                source_text = segment.get("text", "")
+                target_text = segment.get("target_text", "")
+
+                if source_text and target_text and not target_text.startswith("["):
+                    self.tm_manager.add_entry(
+                        source=source_text,
+                        target=target_text,
+                        metadata={
+                            "source": "quick_translation",
+                            "document_id": document_id,
+                        },
+                    )
+                    tm_updated_count += 1
+
+            # Zapisz zaktualizowaną TM
+            tm_filename = f"tm_updated_{document_id}.tmx"
+            self.tm_manager.save(tm_filename)
+
+            logger.info(
+                f"Quick translation completed: {output_path}, "
+                f"TM updated with {tm_updated_count} segments"
+            )
+
+            return TranslationResult(
+                status="completed",
+                document_id=document_id,
+                segments=translated_segments,
+                terms=[],  # No terms in quick mode
+                translated_path=str(output_path),
+            )
+
+        except Exception as e:
+            logger.error(f"Error in quick translation: {e}", exc_info=True)
+            return TranslationResult(
+                status="error", document_id=document_id, error=str(e)
+            )
+
     async def finalize(
         self,
         document_id: str,

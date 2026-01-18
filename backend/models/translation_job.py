@@ -30,10 +30,18 @@ class TranslationJobStatus(str, Enum):
     ERROR = "error"
 
 
+class TranslationWorkflowMode(str, Enum):
+    """Translation workflow mode."""
+
+    FULL = "full"  # Full workflow with term extraction and validation
+    QUICK = "quick"  # Quick translation using only TM, HUDOC, CURIA - no validation
+
+
 class TranslationConfig(BaseModel):
     """Configuration for translation job."""
 
     language_pair: str = "EN-PL"
+    workflow_mode: TranslationWorkflowMode = TranslationWorkflowMode.FULL
     use_hudoc: bool = True
     use_curia: bool = True
     fuzzy_threshold: float = 0.75

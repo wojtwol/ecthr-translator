@@ -26,6 +26,7 @@ const TranslationPage = () => {
   const [selectedTerm, setSelectedTerm] = useState(null);
   const [view, setView] = useState('split'); // split, glossary, preview
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [workflowMode, setWorkflowMode] = useState('full'); // full or quick
   const [documentStats, setDocumentStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -56,6 +57,7 @@ const TranslationPage = () => {
   const handleStartTranslation = async () => {
     try {
       await startTranslation({
+        workflowMode: workflowMode,
         useHudoc: true,
         useCuria: true,
       });
@@ -284,19 +286,67 @@ const TranslationPage = () => {
               </div>
             </div>
 
-            {/* Translation Config */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start">
-                <div className="text-blue-600 text-xl mr-3">ℹ️</div>
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">Opcje tłumaczenia:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Wykorzystanie pamięci tłumaczeniowej (TM)</li>
-                    <li>Wyszukiwanie w bazie HUDOC i CURIA</li>
-                    <li>Ekstrakcja i walidacja terminologii</li>
+            {/* Translation Workflow Mode Selection */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Wybierz tryb tłumaczenia</h3>
+
+              {/* Full Workflow Option */}
+              <label className="flex items-start p-4 mb-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                     style={{ borderColor: workflowMode === 'full' ? '#3B82F6' : '#E5E7EB' }}>
+                <input
+                  type="radio"
+                  name="workflowMode"
+                  value="full"
+                  checked={workflowMode === 'full'}
+                  onChange={(e) => setWorkflowMode(e.target.value)}
+                  className="mt-1 mr-3"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center mb-1">
+                    <span className="font-semibold text-gray-900">Pełny workflow z walidacją terminologii</span>
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Zalecany</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Dokładne tłumaczenie z kontrolą jakości i walidacją użytkownika
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1">
+                    <li>✓ Wykorzystanie pamięci tłumaczeniowej (TM)</li>
+                    <li>✓ Wyszukiwanie w bazach HUDOC i CURIA</li>
+                    <li>✓ Ekstrakcja i walidacja terminologii prawniczej</li>
+                    <li>✓ Możliwość zatwierdzenia/edycji/odrzucenia terminów</li>
+                    <li>✓ Kontrola jakości (QA Review)</li>
                   </ul>
                 </div>
-              </div>
+              </label>
+
+              {/* Quick Workflow Option */}
+              <label className="flex items-start p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                     style={{ borderColor: workflowMode === 'quick' ? '#3B82F6' : '#E5E7EB' }}>
+                <input
+                  type="radio"
+                  name="workflowMode"
+                  value="quick"
+                  checked={workflowMode === 'quick'}
+                  onChange={(e) => setWorkflowMode(e.target.value)}
+                  className="mt-1 mr-3"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center mb-1">
+                    <span className="font-semibold text-gray-900">Szybkie tłumaczenie bez walidacji</span>
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">Szybki</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Natychmiastowe tłumaczenie z wykorzystaniem istniejącej pamięci tłumaczeniowej
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1">
+                    <li>✓ Wykorzystanie pamięci tłumaczeniowej (TM)</li>
+                    <li>✓ Automatyczne tłumaczenie bez ekstrakcji terminów</li>
+                    <li>✓ Brak etapu walidacji - gotowy dokument od razu</li>
+                    <li>✓ Automatyczna aktualizacja pamięci tłumaczeniowej</li>
+                    <li>⚠ Brak kontroli jakości i walidacji terminologii</li>
+                  </ul>
+                </div>
+              </label>
             </div>
 
             {/* Start Translation Button */}

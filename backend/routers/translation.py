@@ -235,100 +235,158 @@ async def _run_translation(
     orch = get_orchestrator()
 
     try:
-        logger.info(f"[Job {job_id}] Starting Orchestrator.process()")
-
         # Get job
         job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
+        document = db.query(models.Document).filter(models.Document.id == document_id).first()
 
-        # Phase 1: Analysis
-        await ws_manager.broadcast_progress(document_id, "analysis", 0.1, "Analyzing document structure")
-        job.phase = TranslationPhase.ANALYSIS
-        job.progress = 0.1
-        db.commit()
+        # Check workflow mode
+        from models.translation_job import TranslationWorkflowMode
 
-        # Phase 2: Term Extraction
-        await ws_manager.broadcast_progress(document_id, "term_extraction", 0.3, "Extracting terminology")
-        job.phase = TranslationPhase.TERM_EXTRACTION
-        job.progress = 0.3
-        db.commit()
+        if config.workflow_mode == TranslationWorkflowMode.QUICK:
+            # ============= QUICK WORKFLOW =============
+            logger.info(f"[Job {job_id}] Starting QUICK workflow (no term validation)")
 
-        # Phase 3: External Research
-        if config.use_hudoc or config.use_curia:
-            await ws_manager.broadcast_progress(document_id, "research", 0.5, "Searching HUDOC and CURIA")
-            job.phase = TranslationPhase.RESEARCH
+            # Phase 1: Analysis
+            await ws_manager.broadcast_progress(document_id, "analysis", 0.2, "Analyzing document structure")
+            job.phase = TranslationPhase.ANALYSIS
+            job.progress = 0.2
+            db.commit()
+
+            # Phase 2: Translation
+            await ws_manager.broadcast_progress(document_id, "translating", 0.5, "Translating with TM")
+            job.phase = TranslationPhase.TRANSLATING
             job.progress = 0.5
             db.commit()
 
-        # Phase 4: Translation
-        await ws_manager.broadcast_progress(document_id, "translating", 0.7, "Translating segments")
-        job.phase = TranslationPhase.TRANSLATING
-        job.progress = 0.7
-        db.commit()
+            # Run quick orchestrator
+            result = await orch.process_quick(document_id, source_path)
 
-        # Run orchestrator
-        result = await orch.process(document_id, source_path)
+            if result.status == "error":
+                raise Exception(result.error)
 
-        if result.status == "error":
-            raise Exception(result.error)
+            # Save translated segments
+            logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments")
+            for idx, segment_data in enumerate(result.segments):
+                db_segment = models.Segment(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    index=idx,
+                    source_text=segment_data.get("text", ""),
+                    target_text=segment_data.get("target_text", ""),
+                    section_type=segment_data.get("section_type", "other"),
+                    format_metadata=segment_data.get("formatting", {}),
+                    status="translated",
+                )
+                db.add(db_segment)
 
-        # Save extracted terms to database for user validation
-        logger.info(f"[Job {job_id}] Saving {len(result.terms)} terms to database")
-        for term_data in result.terms:
-            db_term = models.Term(
-                id=str(uuid.uuid4()),
-                document_id=document_id,
-                source_term=term_data.get("source_term", ""),
-                target_term=term_data.get("proposed_translation", ""),
-                original_proposal=term_data.get("proposed_translation", ""),
-                context=term_data.get("context", ""),
-                hudoc_reference=term_data.get("hudoc_reference"),
-                curia_reference=term_data.get("curia_reference"),
-                confidence_score=term_data.get("confidence_score", 0.0),
-                status="pending",  # User needs to validate
+            db.commit()
+
+            # Mark as completed immediately
+            job.status = TranslationJobStatus.COMPLETED
+            job.phase = TranslationPhase.COMPLETED
+            job.progress = 1.0
+            job.current_step = "Translation complete"
+            job.completed_at = datetime.now()
+
+            document.status = "completed"
+            document.translated_path = result.translated_path
+
+            db.commit()
+
+            await ws_manager.broadcast_translation_complete(document_id, job_id)
+            logger.info(f"[Job {job_id}] Quick translation completed")
+
+        else:
+            # ============= FULL WORKFLOW (with validation) =============
+            logger.info(f"[Job {job_id}] Starting FULL workflow (with term validation)")
+
+            # Phase 1: Analysis
+            await ws_manager.broadcast_progress(document_id, "analysis", 0.1, "Analyzing document structure")
+            job.phase = TranslationPhase.ANALYSIS
+            job.progress = 0.1
+            db.commit()
+
+            # Phase 2: Term Extraction
+            await ws_manager.broadcast_progress(document_id, "term_extraction", 0.3, "Extracting terminology")
+            job.phase = TranslationPhase.TERM_EXTRACTION
+            job.progress = 0.3
+            db.commit()
+
+            # Phase 3: External Research
+            if config.use_hudoc or config.use_curia:
+                await ws_manager.broadcast_progress(document_id, "research", 0.5, "Searching HUDOC and CURIA")
+                job.phase = TranslationPhase.RESEARCH
+                job.progress = 0.5
+                db.commit()
+
+            # Phase 4: Translation
+            await ws_manager.broadcast_progress(document_id, "translating", 0.7, "Translating segments")
+            job.phase = TranslationPhase.TRANSLATING
+            job.progress = 0.7
+            db.commit()
+
+            # Run orchestrator
+            result = await orch.process(document_id, source_path)
+
+            if result.status == "error":
+                raise Exception(result.error)
+
+            # Save extracted terms to database for user validation
+            logger.info(f"[Job {job_id}] Saving {len(result.terms)} terms to database")
+            for term_data in result.terms:
+                db_term = models.Term(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    source_term=term_data.get("source_term", ""),
+                    target_term=term_data.get("proposed_translation", ""),
+                    original_proposal=term_data.get("proposed_translation", ""),
+                    context=term_data.get("context", ""),
+                    hudoc_reference=term_data.get("hudoc_reference"),
+                    curia_reference=term_data.get("curia_reference"),
+                    confidence_score=term_data.get("confidence_score", 0.0),
+                    status="pending",  # User needs to validate
+                )
+                db.add(db_term)
+
+            db.commit()
+            logger.info(f"[Job {job_id}] Saved {len(result.terms)} terms for validation")
+
+            # Save translated segments to database
+            logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments to database")
+            for idx, segment_data in enumerate(result.segments):
+                db_segment = models.Segment(
+                    id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    index=idx,
+                    source_text=segment_data.get("text", ""),
+                    target_text=segment_data.get("target_text", ""),
+                    section_type=segment_data.get("section_type", "other"),
+                    format_metadata=segment_data.get("formatting", {}),
+                    status="translated",
+                )
+                db.add(db_segment)
+
+            db.commit()
+            logger.info(f"[Job {job_id}] Saved {len(result.segments)} segments")
+
+            # Move to validation phase
+            job.status = TranslationJobStatus.AWAITING_VALIDATION
+            job.phase = TranslationPhase.VALIDATION
+            job.progress = 0.9
+            job.current_step = "Awaiting user validation"
+
+            document.status = "validating"
+
+            db.commit()
+
+            await ws_manager.broadcast_progress(
+                document_id, "validation", 0.9, "Translation complete. Please validate terms."
             )
-            db.add(db_term)
 
-        db.commit()
-        logger.info(f"[Job {job_id}] Saved {len(result.terms)} terms for validation")
+            # Notify frontend that translation is complete and ready for validation
+            await ws_manager.broadcast_translation_complete(document_id, job_id)
 
-        # Save translated segments to database
-        logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments to database")
-        for idx, segment_data in enumerate(result.segments):
-            db_segment = models.Segment(
-                id=str(uuid.uuid4()),
-                document_id=document_id,
-                index=idx,
-                source_text=segment_data.get("text", ""),
-                target_text=segment_data.get("target_text", ""),
-                section_type=segment_data.get("section_type", "other"),
-                format_metadata=segment_data.get("formatting", {}),
-                status="translated",
-            )
-            db.add(db_segment)
-
-        db.commit()
-        logger.info(f"[Job {job_id}] Saved {len(result.segments)} segments")
-
-        # Move to validation phase
-        job.status = TranslationJobStatus.AWAITING_VALIDATION
-        job.phase = TranslationPhase.VALIDATION
-        job.progress = 0.9
-        job.current_step = "Awaiting user validation"
-
-        # Update document
-        document = db.query(models.Document).filter(models.Document.id == document_id).first()
-        document.status = "validating"
-
-        db.commit()
-
-        await ws_manager.broadcast_progress(
-            document_id, "validation", 0.9, "Translation complete. Please validate terms."
-        )
-
-        # Notify frontend that translation is complete and ready for validation
-        await ws_manager.broadcast_translation_complete(document_id, job_id)
-
-        logger.info(f"[Job {job_id}] Translation complete, awaiting validation")
+            logger.info(f"[Job {job_id}] Translation complete, awaiting validation")
 
     except Exception as e:
         logger.error(f"[Job {job_id}] Translation failed: {e}", exc_info=True)
