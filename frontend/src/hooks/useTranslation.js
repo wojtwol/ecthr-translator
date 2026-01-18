@@ -15,6 +15,7 @@ export const useTranslation = (documentId) => {
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const pingIntervalRef = useRef(null);
 
   // Fetch document details
   const fetchDocument = useCallback(async () => {
@@ -138,6 +139,24 @@ export const useTranslation = (documentId) => {
 
       ws.onopen = () => {
         console.log('WebSocket connected');
+
+        // If reconnecting during active translation, refresh state from API
+        if (translationStatus === 'translating') {
+          console.log('Reconnected during translation - refreshing state');
+          fetchDocument();
+          fetchTerms();
+        }
+
+        // Start keepalive ping every 30 seconds
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+        }
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            console.log('Sending keepalive ping');
+            ws.send('ping');
+          }
+        }, 30000); // 30 seconds
       };
 
       ws.onmessage = (event) => {
@@ -225,6 +244,12 @@ export const useTranslation = (documentId) => {
         console.log('WebSocket disconnected');
         wsRef.current = null;
 
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+
         // Attempt to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log('Attempting to reconnect WebSocket...');
@@ -239,6 +264,9 @@ export const useTranslation = (documentId) => {
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
       }
       if (wsRef.current) {
         wsRef.current.close();
