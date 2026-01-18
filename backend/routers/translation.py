@@ -260,6 +260,7 @@ async def _run_translation(
 
             # Callback for live translation updates
             async def on_segment_translated_callback(segment_idx, total_segments, segment):
+                logger.info(f"[Job {job_id}] Segment {segment_idx+1}/{total_segments} translated callback")
                 progress_pct = 0.5 + (segment_idx + 1) / total_segments * 0.4  # 50% to 90%
                 await ws_manager.send_message(
                     {
@@ -272,6 +273,7 @@ async def _run_translation(
                     },
                     document_id
                 )
+                logger.info(f"[Job {job_id}] Segment {segment_idx+1} WebSocket message sent")
 
             # Run quick orchestrator
             logger.info(f"[Job {job_id}] Calling orchestrator.process_quick()")
