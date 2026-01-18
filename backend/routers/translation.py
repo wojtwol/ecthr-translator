@@ -352,16 +352,24 @@ async def _run_translation(
                     logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
 
                     for term_data in batch_terms:
+                        # Prepare references JSON with additional metadata
+                        references = {}
+                        if term_data.get("hudoc_reference"):
+                            references["hudoc"] = term_data.get("hudoc_reference")
+                        if term_data.get("curia_reference"):
+                            references["curia"] = term_data.get("curia_reference")
+                        if term_data.get("context"):
+                            references["context"] = term_data.get("context")
+
                         db_term = models.Term(
                             id=str(uuid.uuid4()),
                             document_id=document_id,
                             source_term=term_data.get("source_term", ""),
                             target_term=term_data.get("proposed_translation", ""),
                             original_proposal=term_data.get("proposed_translation", ""),
-                            context=term_data.get("context", ""),
-                            hudoc_reference=term_data.get("hudoc_reference"),
-                            curia_reference=term_data.get("curia_reference"),
-                            confidence_score=term_data.get("confidence_score", 0.0),
+                            source_type=term_data.get("source_type", "proposed"),
+                            confidence=term_data.get("confidence_score", 0.5),
+                            references=references if references else None,
                             status="pending",
                         )
                         batch_db.add(db_term)
