@@ -321,6 +321,14 @@ export const useTranslation = (documentId) => {
     }
   }, [documentId, fetchDocument, fetchTerms]);
 
+  // Fetch segments when status is validating or completed
+  useEffect(() => {
+    if (translationStatus === 'validating' || translationStatus === 'completed' || translationStatus === 'complete') {
+      console.log('[useTranslation] Fetching segments for completed/validating status');
+      fetchSegments();
+    }
+  }, [translationStatus, fetchSegments]);
+
   return {
     document,
     terms,

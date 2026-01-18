@@ -199,15 +199,6 @@ const TranslationPage = () => {
                   ✓ Zakończ tłumaczenie
                 </button>
               )}
-
-              {(translationStatus === 'completed' || translationStatus === 'complete') && (
-                <button
-                  onClick={handleDownload}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  ⬇ Pobierz tłumaczenie
-                </button>
-              )}
             </div>
           </div>
 
@@ -494,6 +485,85 @@ const TranslationPage = () => {
               Spróbuj ponownie
             </button>
           </div>
+        ) : (translationStatus === 'completed' || translationStatus === 'complete') ? (
+          <>
+            {/* Completion Banner */}
+            <div className="bg-green-50 border-l-4 border-green-500 p-6 mb-6 rounded-r-lg shadow-sm">
+              <div className="flex items-center">
+                <div className="text-green-600 text-4xl mr-4">✓</div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-green-900 mb-1">
+                    Tłumaczenie zakończone!
+                  </h3>
+                  <p className="text-sm text-green-700">
+                    Możesz przejrzeć przetłumaczone segmenty i terminologię poniżej, lub pobrać gotowy dokument.
+                  </p>
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="ml-4 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  ⬇ Pobierz DOCX
+                </button>
+              </div>
+            </div>
+
+            {/* Translated Segments Preview */}
+            {translatedSegments.length > 0 && (
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  📝 Przetłumaczone segmenty ({translatedSegments.length})
+                </h3>
+                <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {/* Left Column - Source (EN) */}
+                  <div className="border-r border-gray-200 pr-4">
+                    <div className="sticky top-0 bg-white pb-2 mb-2 border-b border-gray-300">
+                      <h4 className="font-semibold text-sm text-gray-700">Tekst źródłowy (EN)</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {translatedSegments.map((segment, idx) => (
+                        segment && (
+                          <div key={idx} className="text-sm text-gray-800 p-2 bg-gray-50 rounded">
+                            <span className="text-xs text-gray-500 font-medium mr-2">[{idx + 1}]</span>
+                            {segment.source}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Target (PL) */}
+                  <div className="pl-4">
+                    <div className="sticky top-0 bg-white pb-2 mb-2 border-b border-gray-300">
+                      <h4 className="font-semibold text-sm text-blue-700">Tłumaczenie (PL)</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {translatedSegments.map((segment, idx) => (
+                        segment && (
+                          <div key={idx} className="text-sm text-gray-900 p-2 bg-blue-50 rounded border-l-2 border-blue-500">
+                            <span className="text-xs text-blue-600 font-medium mr-2">[{idx + 1}]</span>
+                            {segment.target}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* View Terminology Section */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                📚 Terminologia
+              </h3>
+              <GlossaryPanel
+                documentId={documentId}
+                onTermSelect={handleTermSelect}
+                onApproveAll={refreshTerms}
+              />
+            </div>
+          </>
         ) : (
           <>
             {/* Batch Extraction Progress Banner */}
