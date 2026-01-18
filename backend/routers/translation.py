@@ -271,8 +271,43 @@ async def _run_translation(
         if result.status == "error":
             raise Exception(result.error)
 
-        # Save segments and terms to database
-        # (In real implementation, save to DB here)
+        # Save extracted terms to database for user validation
+        logger.info(f"[Job {job_id}] Saving {len(result.terms)} terms to database")
+        for term_data in result.terms:
+            db_term = models.Term(
+                id=str(uuid.uuid4()),
+                document_id=document_id,
+                source_term=term_data.get("source_term", ""),
+                target_term=term_data.get("proposed_translation", ""),
+                original_proposal=term_data.get("proposed_translation", ""),
+                context=term_data.get("context", ""),
+                hudoc_reference=term_data.get("hudoc_reference"),
+                curia_reference=term_data.get("curia_reference"),
+                confidence_score=term_data.get("confidence_score", 0.0),
+                status="pending",  # User needs to validate
+            )
+            db.add(db_term)
+
+        db.commit()
+        logger.info(f"[Job {job_id}] Saved {len(result.terms)} terms for validation")
+
+        # Save translated segments to database
+        logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments to database")
+        for idx, segment_data in enumerate(result.segments):
+            db_segment = models.Segment(
+                id=str(uuid.uuid4()),
+                document_id=document_id,
+                index=idx,
+                source_text=segment_data.get("text", ""),
+                target_text=segment_data.get("target_text", ""),
+                section_type=segment_data.get("section_type", "other"),
+                format_metadata=segment_data.get("formatting", {}),
+                status="translated",
+            )
+            db.add(db_segment)
+
+        db.commit()
+        logger.info(f"[Job {job_id}] Saved {len(result.segments)} segments")
 
         # Move to validation phase
         job.status = TranslationJobStatus.AWAITING_VALIDATION
@@ -351,9 +386,30 @@ async def _run_finalization(job_id: str, document_id: str, db: Session):
             for term in validated_terms
         ]
 
-        # Get segments (placeholder - should be from DB)
-        segments = []
-        metadata = {}
+        # Get segments from database
+        db_segments = (
+            db.query(models.Segment)
+            .filter(models.Segment.document_id == document_id)
+            .order_by(models.Segment.index)
+            .all()
+        )
+
+        segments = [
+            {
+                "text": seg.source_text,
+                "translated_text": seg.target_text,
+                "source_text": seg.source_text,
+                "section_type": seg.section_type,
+                "formatting": seg.format_metadata or {},
+            }
+            for seg in db_segments
+        ]
+
+        # Get document metadata
+        metadata = {
+            "filename": document.filename,
+            "original_path": str(document.original_path),
+        }
 
         # Call Orchestrator.finalize()
         await ws_manager.broadcast_progress(document_id, "implementing", 0.92, "Implementing changes")
