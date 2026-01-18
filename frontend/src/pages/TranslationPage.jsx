@@ -27,6 +27,8 @@ const TranslationPage = () => {
   const [view, setView] = useState('split'); // split, glossary, preview
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [workflowMode, setWorkflowMode] = useState('full'); // full or quick
+  const [useHudoc, setUseHudoc] = useState(true);
+  const [useCuria, setUseCuria] = useState(true);
   const [documentStats, setDocumentStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -58,8 +60,8 @@ const TranslationPage = () => {
     try {
       await startTranslation({
         workflowMode: workflowMode,
-        useHudoc: true,
-        useCuria: true,
+        useHudoc: useHudoc,
+        useCuria: useCuria,
       });
     } catch (err) {
       console.error('Failed to start translation:', err);
@@ -347,6 +349,40 @@ const TranslationPage = () => {
                   </ul>
                 </div>
               </label>
+
+              {/* Optional HUDOC/CURIA for Quick Mode */}
+              {workflowMode === 'quick' && (
+                <div className="mt-3 ml-9 pl-4 border-l-2 border-gray-300">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Opcjonalne źródła terminologii:</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useHudoc}
+                        onChange={(e) => setUseHudoc(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Wyszukiwanie w bazie HUDOC (orzeczenia ETPCz)
+                      </span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useCuria}
+                        onChange={(e) => setUseCuria(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Wyszukiwanie w bazie CURIA (orzeczenia TSUE)
+                      </span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Włączenie wyszukiwania w bazach może poprawić jakość terminologii, ale wydłuży czas tłumaczenia
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Start Translation Button */}

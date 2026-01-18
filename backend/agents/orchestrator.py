@@ -270,14 +270,15 @@ class Orchestrator:
             )
 
     async def process_quick(
-        self, document_id: str, source_path: str
+        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False
     ) -> TranslationResult:
         """
-        Quick translation workflow - uses only TM without term extraction and validation.
+        Quick translation workflow - uses TM + optionally HUDOC/CURIA, without term extraction and validation.
 
         This mode:
         - Extracts document structure
         - Uses Translation Memory for terminology
+        - Optionally enriches with HUDOC/CURIA terminology
         - Translates directly
         - Skips term extraction and user validation
         - Completes immediately with final DOCX
@@ -285,12 +286,14 @@ class Orchestrator:
         Args:
             document_id: ID dokumentu
             source_path: Ścieżka do pliku źródłowego
+            use_hudoc: Whether to use HUDOC for terminology enrichment
+            use_curia: Whether to use CURIA for terminology enrichment
 
         Returns:
             TranslationResult with completed translation
         """
         try:
-            logger.info(f"Starting QUICK translation for document {document_id}")
+            logger.info(f"Starting QUICK translation for document {document_id} (HUDOC: {use_hudoc}, CURIA: {use_curia})")
 
             # Faza 1: Ekstrakcja formatów
             logger.info("Phase 1: Extracting document structure")
@@ -311,8 +314,8 @@ class Orchestrator:
             logger.info("Phase 2: Parsing structure")
             parsed_segments = await self.structure_parser.parse(segments)
 
-            # Faza 3: Przygotuj terminologię TYLKO z TM (bez ekstrakcji nowych terminów)
-            logger.info("Phase 3: Loading terminology from TM only (no extraction)")
+            # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
+            logger.info("Phase 3: Loading terminology from TM + optional case law databases")
             terminology = {}
 
             # Zbierz znane terminy z TM dla każdego segmentu
@@ -322,6 +325,38 @@ class Orchestrator:
                     terminology[tm_match.source] = tm_match.target
 
             logger.info(f"Loaded {len(terminology)} terms from Translation Memory")
+
+            # Opcjonalnie wzbogać terminologię z HUDOC/CURIA
+            if use_hudoc or use_curia:
+                logger.info("Enriching terminology with case law research (quick mode)")
+                try:
+                    # Użyj Case Law Researcher do wzbogacenia terminologii
+                    case_law_researcher = self.term_extractor._get_case_law_researcher()
+
+                    if case_law_researcher:
+                        # Zbierz unikalne terminy z TM jako seed terms
+                        seed_terms = list(terminology.keys())[:20]  # Limit do 20 terminów dla szybkości
+
+                        for term in seed_terms:
+                            if use_hudoc:
+                                hudoc_results = await case_law_researcher.search_hudoc(term)
+                                if hudoc_results:
+                                    # Dodaj znalezione tłumaczenia do terminologii
+                                    for result in hudoc_results[:3]:  # Top 3 wyniki
+                                        if 'target' in result:
+                                            terminology[result['source']] = result['target']
+
+                            if use_curia:
+                                curia_results = await case_law_researcher.search_curia(term)
+                                if curia_results:
+                                    for result in curia_results[:3]:
+                                        if 'target' in result:
+                                            terminology[result['source']] = result['target']
+
+                        logger.info(f"Enriched terminology: now {len(terminology)} terms (added from case law)")
+                except Exception as e:
+                    logger.warning(f"Could not enrich terminology from case law: {e}")
+                    # Continue with TM-only terminology
 
             # Faza 4: Tłumaczenie
             logger.info("Phase 4: Translating with TM terminology")

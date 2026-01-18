@@ -259,7 +259,12 @@ async def _run_translation(
             db.commit()
 
             # Run quick orchestrator
-            result = await orch.process_quick(document_id, source_path)
+            result = await orch.process_quick(
+                document_id,
+                source_path,
+                use_hudoc=config.use_hudoc,
+                use_curia=config.use_curia
+            )
 
             if result.status == "error":
                 raise Exception(result.error)
