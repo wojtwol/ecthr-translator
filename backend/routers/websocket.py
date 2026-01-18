@@ -133,6 +133,21 @@ async def websocket_endpoint(websocket: WebSocket, document_id: str):
     """
     await manager.connect(websocket, document_id)
 
+    # Server-side keepalive task
+    async def keepalive():
+        """Send keepalive pings to prevent Render timeout (55s)."""
+        try:
+            while True:
+                await asyncio.sleep(20)  # Ping every 20s
+                try:
+                    await websocket.send_text("keepalive")
+                except:
+                    break
+        except asyncio.CancelledError:
+            pass
+
+    keepalive_task = asyncio.create_task(keepalive())
+
     try:
         # Send initial connection confirmation
         await websocket.send_json({
@@ -154,6 +169,7 @@ async def websocket_endpoint(websocket: WebSocket, document_id: str):
                 break
 
     finally:
+        keepalive_task.cancel()
         manager.disconnect(websocket, document_id)
 
 

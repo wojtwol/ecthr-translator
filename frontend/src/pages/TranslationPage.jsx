@@ -33,6 +33,18 @@ const TranslationPage = () => {
   const [documentStats, setDocumentStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
+  // Polling backup for terms when WebSocket fails during validation
+  useEffect(() => {
+    if (translationStatus === 'validating' || translationStatus === 'translating') {
+      const interval = setInterval(() => {
+        console.log('[Polling] Refreshing terms and segments as backup...');
+        refreshTerms();
+      }, 5000); // Poll every 5 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [translationStatus, refreshTerms]);
+
   // Remove auto-start - user must click "Translate" button
 
   // Fetch document statistics when document is ready

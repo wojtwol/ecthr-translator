@@ -182,9 +182,9 @@ export const useTranslation = (documentId) => {
 
       ws.onmessage = async (event) => {
         try {
-          // Ignore pong responses (plain text, not JSON)
-          if (event.data === 'pong') {
-            console.log('Received keepalive pong');
+          // Ignore keepalive messages (plain text, not JSON)
+          if (event.data === 'pong' || event.data === 'keepalive') {
+            console.log('Received keepalive:', event.data);
             return;
           }
 
