@@ -172,3 +172,39 @@ async def download_document(document_id: str, db: Session = Depends(get_db)):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=f"translated_{db_document.filename}",
     )
+
+
+@router.get("/{document_id}/segments")
+async def get_segments(document_id: str, db: Session = Depends(get_db)):
+    """
+    Get all translation segments for a document.
+
+    Args:
+        document_id: Document ID
+        db: Database session
+
+    Returns:
+        List of segments with source and target text
+    """
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    segments = (
+        db.query(models.Segment)
+        .filter(models.Segment.document_id == document_id)
+        .order_by(models.Segment.index)
+        .all()
+    )
+
+    return [
+        {
+            "index": seg.index,
+            "source_text": seg.source_text,
+            "target_text": seg.target_text,
+            "section_type": seg.section_type,
+            "status": seg.status,
+        }
+        for seg in segments
+    ]

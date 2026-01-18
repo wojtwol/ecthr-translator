@@ -32,6 +32,27 @@ export const useTranslation = (documentId) => {
     }
   }, [documentId]);
 
+  // Fetch translation segments
+  const fetchSegments = useCallback(async () => {
+    try {
+      const response = await fetch(`https://ecthr-translator.onrender.com/api/documents/${documentId}/segments`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch segments');
+      }
+      const segments = await response.json();
+
+      // Convert to translatedSegments format
+      const formattedSegments = segments.map(seg => ({
+        index: seg.index,
+        source: seg.source_text,
+        target: seg.target_text
+      }));
+      setTranslatedSegments(formattedSegments);
+    } catch (err) {
+      console.error('Failed to fetch segments:', err);
+    }
+  }, [documentId]);
+
   // Fetch glossary terms
   const fetchTerms = useCallback(async () => {
     try {
@@ -159,7 +180,7 @@ export const useTranslation = (documentId) => {
         }, 30000); // 30 seconds
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
           // Ignore pong responses (plain text, not JSON)
           if (event.data === 'pong') {
@@ -224,9 +245,10 @@ export const useTranslation = (documentId) => {
               break;
 
             case 'translation_complete':
-              setTranslationStatus('validating');
-              fetchDocument();
-              fetchTerms();
+              console.log('Translation complete - fetching segments');
+              await fetchDocument();
+              await fetchSegments();  // Fetch segments from database
+              await fetchTerms();
               break;
 
             case 'error':
