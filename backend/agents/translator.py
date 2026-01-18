@@ -100,11 +100,12 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
                         logger.error(f"Error in segment callback: {e}")
 
             except Exception as e:
-                logger.error(f"Error translating segment {i}: {e}")
+                logger.error(f"Error translating segment {i}: {e}", exc_info=True)
                 segment["target_text"] = f"[BŁĄD TŁUMACZENIA: {source_text}]"
                 translated_segments.append(segment)
 
-        logger.info(f"Translated {len(translated_segments)} segments")
+        logger.info(f"Translation loop completed - {len(translated_segments)} segments processed")
+        logger.info(f"Preparing to return {len(translated_segments)} segments to orchestrator")
         return translated_segments
 
     async def _translate_segment(

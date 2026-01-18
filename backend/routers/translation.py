@@ -274,6 +274,7 @@ async def _run_translation(
                 )
 
             # Run quick orchestrator
+            logger.info(f"[Job {job_id}] Calling orchestrator.process_quick()")
             result = await orch.process_quick(
                 document_id,
                 source_path,
@@ -281,12 +282,13 @@ async def _run_translation(
                 use_curia=config.use_curia,
                 on_segment_translated=on_segment_translated_callback
             )
+            logger.info(f"[Job {job_id}] Orchestrator returned - status: {result.status}, segments: {len(result.segments)}")
 
             if result.status == "error":
                 raise Exception(result.error)
 
             # Save translated segments
-            logger.info(f"[Job {job_id}] Saving {len(result.segments)} segments")
+            logger.info(f"[Job {job_id}] Starting to save {len(result.segments)} segments to database")
             for idx, segment_data in enumerate(result.segments):
                 db_segment = models.Segment(
                     id=str(uuid.uuid4()),
