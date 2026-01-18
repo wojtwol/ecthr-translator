@@ -188,7 +188,7 @@ const TranslationPage = () => {
                 </button>
               )}
 
-              {translationStatus === 'complete' && (
+              {(translationStatus === 'completed' || translationStatus === 'complete') && (
                 <button
                   onClick={handleDownload}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -623,6 +623,7 @@ const getStatusLabel = (status) => {
     translating: 'Tłumaczenie w toku',
     validating: 'Walidacja terminów',
     complete: 'Zakończone',
+    completed: 'Zakończone',
     error: 'Błąd',
   };
   return labels[status] || status;
