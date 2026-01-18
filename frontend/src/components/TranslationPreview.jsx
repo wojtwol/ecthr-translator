@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) => {
-  const [activeTab, setActiveTab] = useState('translated');
-
   // Highlight terms in the text
-  const highlightTerms = (text, termsList) => {
+  const highlightTerms = (text, termsList, useSourceTerms = false) => {
     if (!text || !termsList || termsList.length === 0) {
       return <p className="whitespace-pre-wrap">{text}</p>;
     }
@@ -21,7 +19,7 @@ const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) 
     // Find all term occurrences
     const occurrences = [];
     sortedTerms.forEach(term => {
-      const searchTerm = activeTab === 'source' ? term.source_term : term.target_term;
+      const searchTerm = useSourceTerms ? term.source_term : term.target_term;
       const regex = new RegExp(`\\b${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       let match;
 
@@ -101,51 +99,42 @@ const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) 
 
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab('source')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'source'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            📄 Tekst źródłowy (EN)
-          </button>
-          <button
-            onClick={() => setActiveTab('translated')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'translated'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            🌍 Tłumaczenie (PL)
-          </button>
-        </div>
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900">
+          📄 Podgląd tłumaczenia
+        </h3>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
-        {activeTab === 'source' ? (
-          <div className="prose max-w-none">
+      {/* Parallel Content - Two Columns */}
+      <div className="grid grid-cols-2 gap-0 max-h-[600px] overflow-y-auto">
+        {/* Left Column - Source (EN) */}
+        <div className="border-r border-gray-200 p-6 bg-gray-50">
+          <div className="sticky top-0 bg-gray-50 pb-3 mb-3 border-b-2 border-gray-300">
+            <h4 className="font-semibold text-sm text-gray-700">📄 Tekst źródłowy (EN)</h4>
+          </div>
+          <div className="prose prose-sm max-w-none">
             {sourceText ? (
-              highlightTerms(sourceText, terms)
+              highlightTerms(sourceText, terms, true)
             ) : (
               <p className="text-gray-400 italic">Brak tekstu źródłowego</p>
             )}
           </div>
-        ) : (
-          <div className="prose max-w-none">
+        </div>
+
+        {/* Right Column - Target (PL) */}
+        <div className="p-6 bg-white">
+          <div className="sticky top-0 bg-white pb-3 mb-3 border-b-2 border-blue-300">
+            <h4 className="font-semibold text-sm text-blue-700">🌍 Tłumaczenie (PL)</h4>
+          </div>
+          <div className="prose prose-sm max-w-none">
             {translatedText ? (
-              highlightTerms(translatedText, terms)
+              highlightTerms(translatedText, terms, false)
             ) : (
               <p className="text-gray-400 italic">Tłumaczenie w toku...</p>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Legend */}
