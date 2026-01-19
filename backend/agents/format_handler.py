@@ -9,6 +9,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Lazy import to avoid circular dependencies
+_citation_detector = None
+
+def get_citation_detector():
+    """Lazy initialization of CitationDetector."""
+    global _citation_detector
+    if _citation_detector is None:
+        from agents.citation_detector import CitationDetector
+        _citation_detector = CitationDetector()
+    return _citation_detector
+
 
 class FormatHandler:
     """Handles DOCX format extraction and reconstruction."""
@@ -79,6 +90,7 @@ class FormatHandler:
         translated_segments: List[Dict[str, Any]],
         metadata: Dict[str, Any],
         output_path: str,
+        color_citations: bool = False,
     ) -> str:
         """
         Reconstruct DOCX from translated segments.
@@ -87,6 +99,7 @@ class FormatHandler:
             translated_segments: List of translated segments with format metadata
             metadata: Document metadata
             output_path: Path to save reconstructed DOCX
+            color_citations: If True, color segments containing case citations (default: False)
 
         Returns:
             Path to reconstructed DOCX file
@@ -100,17 +113,31 @@ class FormatHandler:
             # Group segments by type for reconstruction
             table_segments = {}
 
+            # Initialize citation detector if needed
+            citation_detector = get_citation_detector() if color_citations else None
+            citation_count = 0
+
             # Reconstruct segments
             for segment in translated_segments:
                 # Get translated text with fallbacks
                 translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+
+                # Check for citations in SOURCE text (original document)
+                has_citations = False
+                if citation_detector:
+                    source_text = segment.get("text", "")  # Original source text
+                    citations = citation_detector.detect_citations(source_text)
+                    has_citations = citations.get("total", 0) > 0
+                    if has_citations:
+                        citation_count += 1
+                        logger.debug(f"Segment {segment.get('index', '?')} contains {citations['total']} citation(s)")
 
                 parent_type = segment.get("parent_type", "paragraph")
 
                 if parent_type == "paragraph":
                     para = doc.add_paragraph()
                     para.text = translated_text
-                    self._apply_paragraph_format(para, segment.get("format", {}))
+                    self._apply_paragraph_format(para, segment.get("format", {}), has_citations=has_citations)
 
                 elif parent_type == "table_cell":
                     # Store table segments for later reconstruction
@@ -119,6 +146,9 @@ class FormatHandler:
 
                     if table_idx not in table_segments:
                         table_segments[table_idx] = []
+
+                    # Add citation flag to segment
+                    segment["_has_citations"] = has_citations
                     table_segments[table_idx].append(segment)
 
             # Reconstruct tables (simplified - creates new tables)
@@ -141,15 +171,27 @@ class FormatHandler:
                     row = table_pos.get("row", 0)
                     col = table_pos.get("col", 0)
                     translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+                    has_citations = segment.get("_has_citations", False)
 
                     if row < len(table.rows) and col < len(table.rows[row].cells):
-                        table.rows[row].cells[col].text = translated_text
+                        cell = table.rows[row].cells[col]
+                        # Clear existing paragraphs and add new one with proper formatting
+                        cell.text = ""
+                        para = cell.paragraphs[0]
+                        para.text = translated_text
+                        if has_citations:
+                            # Apply citation color to table cell text
+                            for run in para.runs:
+                                run.font.color.rgb = RGBColor(255, 140, 0)  # Orange color
 
             # Save document
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             doc.save(output_path)
 
-            logger.info(f"Reconstructed DOCX saved to {output_path}")
+            if color_citations and citation_count > 0:
+                logger.info(f"Reconstructed DOCX saved to {output_path} (colored {citation_count} segments with citations)")
+            else:
+                logger.info(f"Reconstructed DOCX saved to {output_path}")
 
             return output_path
 
@@ -177,7 +219,7 @@ class FormatHandler:
 
         return format_data
 
-    def _apply_paragraph_format(self, para, format_data: Dict[str, Any]) -> None:
+    def _apply_paragraph_format(self, para, format_data: Dict[str, Any], has_citations: bool = False) -> None:
         """Apply formatting to a paragraph."""
         # Apply alignment
         if format_data.get("alignment"):
@@ -207,6 +249,11 @@ class FormatHandler:
                     run.font.italic = font_data["italic"]
                 if font_data.get("underline") is not None:
                     run.font.underline = font_data["underline"]
+
+        # Apply citation color if needed (overrides other colors)
+        if has_citations and para.runs:
+            for run in para.runs:
+                run.font.color.rgb = RGBColor(255, 140, 0)  # Orange color for citations
 
     def _extract_document_metadata(self, doc) -> Dict[str, Any]:
         """Extract document-level metadata."""

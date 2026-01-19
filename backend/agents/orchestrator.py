@@ -403,7 +403,10 @@ class Orchestrator:
             logger.info("Phase 5: Reconstructing DOCX")
             output_path = settings.output_path / f"{document_id}_translated.docx"
             self.format_handler.reconstruct(
-                translated_segments, document_metadata, str(output_path)
+                translated_segments,
+                document_metadata,
+                str(output_path),
+                color_citations=settings.color_citations_in_docx
             )
 
             # Faza 6: Automatyczny update TM ze wszystkich segmentów
@@ -506,7 +509,10 @@ class Orchestrator:
             logger.info("Phase 3: Reconstructing DOCX")
             output_path = settings.output_path / f"{document_id}_translated.docx"
             self.format_handler.reconstruct(
-                updated_segments, original_metadata, str(output_path)
+                updated_segments,
+                original_metadata,
+                str(output_path),
+                color_citations=settings.color_citations_in_docx
             )
 
             # Faza 4: Automatyczny update TM

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Citation Detection (Phase 1: detection only, no fetching)
     enable_citation_detection: bool = False  # Set to True to enable
+    color_citations_in_docx: bool = True  # Color segments with citations in output DOCX
 
     # TM Configuration
     tm_fuzzy_threshold: float = 0.75

@@ -111,6 +111,28 @@ const TranslationPage = () => {
     window.location.href = `https://ecthr-translator.onrender.com/api/documents/${documentId}/download`;
   };
 
+  const handleExportTM = () => {
+    window.location.href = `https://ecthr-translator.onrender.com/api/tm/export/${documentId}`;
+  };
+
+  const handleUpdateTM = async () => {
+    try {
+      const response = await fetch(`https://ecthr-translator.onrender.com/api/tm/update-from-project/${documentId}`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update TM');
+      }
+
+      const result = await response.json();
+      alert(`✅ Pamięć tłumaczeniowa zaktualizowana!\n\nDodano: ${result.added} segmentów\nPominięto duplikaty: ${result.skipped}\nŁączna liczba wpisów: ${result.total_entries}`);
+    } catch (err) {
+      console.error('Failed to update TM:', err);
+      alert('❌ Nie udało się zaktualizować pamięci tłumaczeniowej');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -500,12 +522,28 @@ const TranslationPage = () => {
                     Możesz przejrzeć przetłumaczone segmenty i terminologię poniżej, lub pobrać gotowy dokument.
                   </p>
                 </div>
-                <button
-                  onClick={handleDownload}
-                  className="ml-4 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md hover:shadow-lg transition-all"
-                >
-                  ⬇ Pobierz DOCX
-                </button>
+                <div className="ml-4 flex gap-3">
+                  <button
+                    onClick={handleDownload}
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md hover:shadow-lg transition-all"
+                  >
+                    ⬇ Pobierz DOCX
+                  </button>
+                  <button
+                    onClick={handleExportTM}
+                    className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                    title="Eksportuj pamięć tłumaczeniową tylko z tego projektu"
+                  >
+                    📥 Eksportuj TM
+                  </button>
+                  <button
+                    onClick={handleUpdateTM}
+                    className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                    title="Aktualizuj globalną pamięć tłumaczeniową segmentami z tego projektu"
+                  >
+                    🔄 Aktualizuj TM
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -734,6 +772,28 @@ const TranslationPage = () => {
               >
                 ⬇️ Pobierz DOCX
               </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    handleExportTM();
+                    setShowSuccessModal(false);
+                  }}
+                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors text-sm"
+                  title="Eksportuj TM projektu"
+                >
+                  📥 Eksportuj TM
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleUpdateTM();
+                    setShowSuccessModal(false);
+                  }}
+                  className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition-colors text-sm"
+                  title="Aktualizuj globalną TM"
+                >
+                  🔄 Aktualizuj TM
+                </button>
+              </div>
               <button
                 onClick={() => navigate('/')}
                 className="w-full px-4 py-2 text-gray-600 hover:text-gray-900 text-sm transition-colors"
