@@ -31,6 +31,7 @@ const TranslationPage = () => {
   const [workflowMode, setWorkflowMode] = useState('full'); // full or quick
   const [useHudoc, setUseHudoc] = useState(true);
   const [useCuria, setUseCuria] = useState(true);
+  const [useIate, setUseIate] = useState(true);
   const [documentStats, setDocumentStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -76,6 +77,7 @@ const TranslationPage = () => {
         workflowMode: workflowMode,
         useHudoc: useHudoc,
         useCuria: useCuria,
+        useIate: useIate,
       });
     } catch (err) {
       console.error('Failed to start translation:', err);
@@ -348,7 +350,7 @@ const TranslationPage = () => {
                   </p>
                   <ul className="text-xs text-gray-500 space-y-1">
                     <li>✓ <strong>Pamięć tłumaczeniowa (TM)</strong> jako fundament tłumaczenia</li>
-                    <li>✓ Wzbogacanie terminologii bazami HUDOC i CURIA</li>
+                    <li>✓ Wzbogacanie terminologii bazami HUDOC, CURIA i IATE</li>
                     <li>✓ Ekstrakcja i walidacja terminologii prawniczej</li>
                     <li>✓ Możliwość zatwierdzenia/edycji/odrzucenia terminów</li>
                     <li>✓ Kontrola jakości (QA Review)</li>
@@ -378,7 +380,7 @@ const TranslationPage = () => {
                   </p>
                   <ul className="text-xs text-gray-500 space-y-1">
                     <li>✓ <strong>Pamięć tłumaczeniowa (TM)</strong> jako główne źródło tłumaczenia</li>
-                    <li>✓ Opcjonalne wzbogacanie o HUDOC/CURIA (poniżej)</li>
+                    <li>✓ Opcjonalne wzbogacanie o HUDOC/CURIA/IATE (poniżej)</li>
                     <li>✓ Automatyczne tłumaczenie bez ekstrakcji terminów</li>
                     <li>✓ Brak etapu walidacji - gotowy dokument od razu</li>
                     <li>✓ Automatyczna aktualizacja TM po zakończeniu</li>
@@ -412,6 +414,17 @@ const TranslationPage = () => {
                       />
                       <span className="ml-2 text-sm text-gray-700">
                         + CURIA (orzeczenia TSUE)
+                      </span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useIate}
+                        onChange={(e) => setUseIate(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        + IATE 🇪🇺 (terminologia UE)
                       </span>
                     </label>
                   </div>
