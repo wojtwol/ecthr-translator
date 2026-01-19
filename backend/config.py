@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     hudoc_enabled: bool = True
     curia_enabled: bool = True
 
+    # IATE Configuration
+    iate_timeout_seconds: int = 30
+    iate_max_retries: int = 3
+    iate_use_mock: bool = False  # Set to True to use mock data instead of real API
+
     # Citation Detection (Phase 1: detection only, no fetching)
     enable_citation_detection: bool = False  # Set to True to enable
     color_citations_in_docx: bool = True  # Color segments with citations in output DOCX
