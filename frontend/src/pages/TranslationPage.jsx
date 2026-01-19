@@ -591,6 +591,40 @@ const TranslationPage = () => {
               </div>
             )}
 
+            {/* Extraction Complete Banner - Show summary of extracted terms */}
+            {translationStatus === 'validating' && progress.stage !== 'batch_extraction' && stats && stats.total > 0 && (
+              <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 text-green-600 text-2xl">
+                    ✓
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-green-900">
+                      Ekstrakcja terminologii zakończona!
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      📚 Znaleziono <strong>{stats.total}</strong> terminów do zatwierdzenia
+                      {stats.from_hudoc > 0 && ` (⚖️ ${stats.from_hudoc} z HUDOC`}
+                      {stats.from_curia > 0 && `, 🏛️ ${stats.from_curia} z CURIA`}
+                      {stats.from_tm_exact > 0 && `, ✓ ${stats.from_tm_exact} z TM 100%`}
+                      {stats.from_tm_fuzzy > 0 && `, ≈ ${stats.from_tm_fuzzy} z TM 95%+`}
+                      {stats.from_proposed > 0 && `, 🤖 ${stats.from_proposed} AI`}
+                      {(stats.from_hudoc > 0 || stats.from_curia > 0 || stats.from_tm_exact > 0 || stats.from_tm_fuzzy > 0 || stats.from_proposed > 0) && ')'}
+                    </p>
+                    {stats.pending > 0 ? (
+                      <p className="text-xs text-green-700 mt-1">
+                        ⏳ Pozostało do zatwierdzenia: <strong>{stats.pending}</strong> terminów
+                      </p>
+                    ) : (
+                      <p className="text-xs text-green-800 mt-1 font-medium">
+                        ✅ Wszystkie terminy zatwierdzone! Kliknij "Zakończ tłumaczenie" aby wygenerować finalne DOCX.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Translated Segments Preview - Show after translation complete */}
             {translatedSegments.length > 0 && (
               <div className="bg-white rounded-lg shadow p-6 mb-6">
