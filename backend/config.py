@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     curia_use_mock: bool = False  # Set to True to use mock data instead of real API
 
     # IATE (Interactive Terminology for Europe)
-    iate_api_url: str = "https://iate.europa.eu/api"
+    iate_api_url: str = "https://iate.europa.eu/em-api"
     iate_enabled: bool = True
-    iate_username: Optional[str] = None  # Set via IATE_USERNAME env var
-    iate_api_key: Optional[str] = None   # Set via IATE_API_KEY env var
+    iate_username: Optional[str] = None  # Set via IATE_USERNAME env var (optional for public API)
+    iate_api_key: Optional[str] = None   # Set via IATE_API_KEY env var (optional for public API)
     iate_max_retries: int = 3
     iate_timeout_seconds: int = 30
-    iate_use_mock: bool = True  # Default to mock until API keys are obtained
+    iate_use_mock: bool = False  # Public API works without credentials!
 
     # General API settings
     max_concurrent_requests: int = 5

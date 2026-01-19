@@ -12,9 +12,6 @@ requests==2.31.0
 beautifulsoup4==4.12.3
 lxml==5.1.0
 
-# EU databases integration
-piate==0.4.0  # IATE terminology database
-
 # SPARQL for EUR-Lex/CURIA
 SPARQLWrapper==2.0.0
 

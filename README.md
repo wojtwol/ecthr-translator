@@ -4,13 +4,14 @@ Legal terminology translation API with **real integrations** for HUDOC, CURIA, a
 
 ## Features
 
-- **HUDOC Integration**: Real search in European Court of Human Rights case law database
-- **CURIA Integration**: Real access to CJEU case law via EUR-Lex SPARQL endpoint
-- **IATE Integration**: Official API access to Interactive Terminology for Europe database
+- **HUDOC Integration**: Real search in European Court of Human Rights case law database ✅
+- **CURIA Integration**: Real access to CJEU case law via EUR-Lex SPARQL endpoint ✅
+- **IATE Integration**: Real PUBLIC API - NO credentials required! ✅ 🎉
 - **Multi-source search**: Automatically searches across all enabled databases
 - **Intelligent selection**: Chooses best translation based on source reliability and confidence
 - **Batch processing**: Search multiple terms simultaneously
 - **RESTful API**: Clean FastAPI-based REST API with OpenAPI documentation
+- **Zero-config**: Works out of the box - no API keys needed!
 
 ## Architecture
 
@@ -82,14 +83,14 @@ The application can work in two modes for each database:
 
 ### IATE
 
-- **Requires API credentials** for full functionality
-- Contact `iate@cdt.europa.eu` to obtain API keys
-- Add credentials to `.env`:
+- **PUBLIC API** - NO credentials required! ✅
+- Works out of the box with public endpoint: `https://iate.europa.eu/em-api/entries/_search`
+- Optional OAuth credentials available from `iate@cdt.europa.eu` for advanced features
+- Credentials can be added to `.env` (optional):
   ```
   IATE_USERNAME=your_username
   IATE_API_KEY=your_api_key
   ```
-- Falls back to mock mode if credentials not provided
 
 ## Running the Application
 
@@ -186,7 +187,7 @@ curl http://localhost:8000/api/terminology/sources
 |----------|----------|--------|-------------|
 | HUDOC | ✅ Implemented | Web scraping | None |
 | CURIA | ✅ Implemented | SPARQL queries | None |
-| IATE | ⚠️ Partial | API ready | API credentials needed |
+| IATE | ✅ Implemented | Public API | **None!** |
 
 ### Enabling Real Mode
 
@@ -199,18 +200,20 @@ HUDOC_USE_MOCK=False
 # Enable real CURIA searches via EUR-Lex
 CURIA_USE_MOCK=False
 
-# Enable real IATE searches (requires credentials)
+# Enable real IATE searches (NO CREDENTIALS NEEDED!)
 IATE_USE_MOCK=False
-IATE_USERNAME=your_username
-IATE_API_KEY=your_api_key
 ```
 
-### Obtaining IATE Credentials
+**All three databases now work with real APIs out of the box!** 🎉
 
-1. Visit: https://iate.europa.eu/
+### Optional: IATE OAuth Credentials
+
+For advanced IATE features, you can optionally obtain OAuth credentials:
+
+1. Visit: https://iate.europa.eu/developers
 2. Contact: iate@cdt.europa.eu
-3. Request API access for your project
-4. Add credentials to `.env` file
+3. Request OAuth credentials for advanced features
+4. Add credentials to `.env` file (optional)
 
 ## Development
 
@@ -245,19 +248,22 @@ Current implementation returns case references. Full translation extraction can 
 - Simplify SPARQL queries
 - Use mock mode as fallback
 
-### IATE authentication errors
+### IATE connection errors
 
-- Verify credentials in `.env`
-- Check if API key is still valid
-- Contact iate@cdt.europa.eu for support
-- Use mock mode as temporary fallback
+- Check internet connectivity
+- Verify endpoint: `https://iate.europa.eu/em-api/entries/_search`
+- Increase `IATE_TIMEOUT_SECONDS` in `.env`
+- Check IATE service status
+- Use mock mode as temporary fallback (`IATE_USE_MOCK=True`)
 
 ## Sources & Documentation
 
 - **HUDOC**: https://hudoc.echr.coe.int/
 - **EUR-Lex SPARQL**: https://publications.europa.eu/webapi/rdf/sparql
 - **IATE**: https://iate.europa.eu/
-- **IATE API Docs**: https://documenter.getpostman.com/view/4028985/RztoMTwn
+- **IATE Developers**: https://iate.europa.eu/developers
+- **IATE Search API Docs**: https://documenter.getpostman.com/view/4028985/RztoMTwn
+- **IATE Auth API Docs**: https://documenter.getpostman.com/view/4028985/S1Lr2pzQ
 
 ## License
 

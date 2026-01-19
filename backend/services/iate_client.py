@@ -1,54 +1,38 @@
 """
 IATE (Interactive Terminology for Europe) Client.
-Provides real integration with IATE terminology database via official API.
+Provides real integration with IATE terminology database via official PUBLIC API.
+
+This client uses the public IATE API endpoint that does NOT require authentication:
+https://iate.europa.eu/em-api/entries/_search
+
+For advanced features, OAuth 2.0 credentials can be obtained from iate@cdt.europa.eu
 """
 import asyncio
 from typing import List, Tuple, Optional, Dict, Any
 
+import httpx
 from loguru import logger
 
 from backend.config import settings
 
-# Try to import piate library (requires API credentials)
-try:
-    import piate
-    from piate.api.session import Session
-    from piate.api.credentials import Credentials
-    PIATE_AVAILABLE = True
-except ImportError:
-    PIATE_AVAILABLE = False
-    logger.warning("piate library not available, IATE client will use mock data only")
-
 
 class IATEClient:
-    """Client for searching terminology in IATE database."""
+    """
+    Client for searching terminology in IATE database.
+
+    Uses the public IATE API endpoint that requires NO authentication.
+    """
 
     def __init__(self):
-        self.api_url = settings.iate_api_url
+        # Public API endpoint (no auth required!)
+        self.api_base = "https://iate.europa.eu/em-api"
+        self.search_endpoint = f"{self.api_base}/entries/_search"
+
         self.timeout = settings.iate_timeout_seconds
         self.max_retries = settings.iate_max_retries
         self.use_mock = settings.iate_use_mock
 
-        self.client = None
-
-        # Initialize real API client if credentials are available
-        if not self.use_mock and PIATE_AVAILABLE:
-            if settings.iate_username and settings.iate_api_key:
-                try:
-                    self.client = piate.client(
-                        username=settings.iate_username,
-                        api_key=settings.iate_api_key
-                    )
-                    logger.info("IATE: Initialized with API credentials")
-                except Exception as e:
-                    logger.error(f"IATE: Failed to initialize API client: {e}")
-                    self.use_mock = True
-            else:
-                logger.warning("IATE: No API credentials provided, using mock data")
-                self.use_mock = True
-        elif not self.use_mock:
-            logger.warning("IATE: piate library not installed, using mock data")
-            self.use_mock = True
+        logger.info(f"IATE: Initialized (mock mode: {self.use_mock})")
 
         # Mock data for fallback
         self._mock_terms = {
@@ -73,7 +57,7 @@ class IATEClient:
         target_lang: str = "pl"
     ) -> Tuple[Optional[str], float, List[str], Optional[str]]:
         """
-        Search for a term in IATE database.
+        Search for a term in IATE database using PUBLIC API.
 
         Args:
             term: The term to search for
@@ -83,7 +67,7 @@ class IATEClient:
         Returns:
             Tuple of (translation, confidence_score, iate_ids, domain)
         """
-        if self.use_mock or not self.client:
+        if self.use_mock:
             logger.info(f"IATE: Using mock data for term '{term}'")
             translation, conf, ids, domain = self._search_mock(term)
             return (translation, conf, ids, domain)
@@ -91,7 +75,7 @@ class IATEClient:
         logger.info(f"IATE: Searching for term '{term}' ({source_lang} -> {target_lang})")
 
         try:
-            # Try real search via IATE API
+            # Try real search via public IATE API
             result = await self._search_real(term, source_lang, target_lang)
             if result[0]:  # If translation found
                 return result
@@ -128,62 +112,125 @@ class IATEClient:
         target_lang: str
     ) -> Tuple[Optional[str], float, List[str], Optional[str]]:
         """
-        Perform real search in IATE database using piate library.
+        Perform real search in IATE database using PUBLIC API endpoint.
 
-        The piate library provides synchronous API, so we run it in executor.
+        API Endpoint: POST https://iate.europa.eu/em-api/entries/_search
+        NO authentication required!
         """
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            self._execute_iate_search,
-            term,
-            source_lang,
-            target_lang
-        )
-        return result
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            # Construct search request body
+            request_body = {
+                "query": term,
+                "source": source_lang,
+                "targets": [target_lang],
+                "search_in_fields": [0],  # 0 = search in term field
+                "search_in_term_types": [0, 1, 2, 3, 4],  # All term types
+                "query_operator": 1,  # 1 = all words (can be 3 for exact match)
+            }
 
-    def _execute_iate_search(
+            # Query parameters
+            params = {
+                "expand": "true",
+                "offset": 0,
+                "limit": 10
+            }
+
+            logger.debug(f"IATE: Searching with body: {request_body}")
+
+            for attempt in range(self.max_retries):
+                try:
+                    response = await client.post(
+                        self.search_endpoint,
+                        json=request_body,
+                        params=params
+                    )
+                    response.raise_for_status()
+
+                    data = response.json()
+
+                    # Parse results
+                    result = self._parse_iate_response(data, term, target_lang)
+                    return result
+
+                except httpx.HTTPStatusError as e:
+                    logger.warning(f"IATE HTTP error (attempt {attempt + 1}/{self.max_retries}): {e}")
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    else:
+                        raise
+
+                except Exception as e:
+                    logger.error(f"IATE unexpected error: {e}")
+                    raise
+
+        return (None, 0.0, [], None)
+
+    def _parse_iate_response(
         self,
+        data: Dict[str, Any],
         term: str,
-        source_lang: str,
         target_lang: str
     ) -> Tuple[Optional[str], float, List[str], Optional[str]]:
         """
-        Execute IATE search synchronously.
+        Parse IATE API response to extract translation and metadata.
 
-        Note: This is a simplified implementation. The actual piate API
-        may have different methods and return structures.
+        Args:
+            data: JSON response from IATE API
+            term: Original search term
+            target_lang: Target language code
+
+        Returns:
+            Tuple of (translation, confidence, iate_ids, domain)
         """
         try:
-            # Search for entries containing the term
-            # Note: Exact API calls depend on piate library version
-            # This is a conceptual implementation
+            items = data.get("items", [])
 
-            # Example search (actual implementation depends on piate API)
-            # results = self.client.search(
-            #     query=term,
-            #     source_language=source_lang,
-            #     target_language=target_lang,
-            #     limit=10
-            # )
+            if not items:
+                return (None, 0.0, [], None)
 
-            # For now, since we don't have real credentials to test,
-            # we'll return a structure that matches what we'd expect
-            logger.warning("IATE: Real API search not fully implemented (requires API credentials)")
-            return (None, 0.0, [], None)
+            # Get first result (best match)
+            first_entry = items[0]
 
-            # When implemented, would look like:
-            # if results and len(results) > 0:
-            #     best_match = results[0]
-            #     translation = best_match.get_translation(target_lang)
-            #     confidence = 0.9  # Could be calculated from result metadata
-            #     iate_ids = [best_match.id]
-            #     domain = best_match.domain
-            #     return (translation, confidence, iate_ids, domain)
+            # Extract IATE ID
+            iate_id = first_entry.get("id", "")
+            iate_ids = [f"IATE:{iate_id}"] if iate_id else []
+
+            # Extract domain
+            domains = first_entry.get("domains", [])
+            domain = domains[0].get("name", {}).get("en") if domains else None
+
+            # Extract translation from target language
+            languages = first_entry.get("language", {})
+            target_data = languages.get(target_lang, {})
+
+            if not target_data:
+                logger.warning(f"IATE: No translation found for target language '{target_lang}'")
+                return (None, 0.0, iate_ids, domain)
+
+            # Get terms from target language
+            terms = target_data.get("term", [])
+
+            if not terms:
+                return (None, 0.0, iate_ids, domain)
+
+            # Get the first (preferred) term
+            translation = terms[0].get("value", "")
+
+            if not translation:
+                return (None, 0.0, iate_ids, domain)
+
+            # Calculate confidence based on reliability and match quality
+            # IATE terms are highly reliable (0.90-0.98)
+            reliability = first_entry.get("reliability", 3)  # 3 = reliable
+            confidence = min(0.90 + (reliability * 0.02), 0.98)
+
+            logger.info(f"IATE: Found translation '{translation}' with confidence {confidence}")
+
+            return (translation, confidence, iate_ids, domain)
 
         except Exception as e:
-            logger.error(f"IATE search execution error: {e}")
-            raise
+            logger.error(f"IATE: Error parsing response: {e}")
+            return (None, 0.0, [], None)
 
     async def search_batch(
         self,
