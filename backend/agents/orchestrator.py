@@ -277,7 +277,7 @@ class Orchestrator:
             )
 
     async def process_quick(
-        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False, use_iate: bool = False, on_segment_translated=None
+        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False, use_iate: bool = False, on_segment_translated=None, ws_manager=None
     ) -> TranslationResult:
         """
         Quick translation workflow - uses TM + optionally HUDOC/CURIA/IATE, without term extraction and validation.
@@ -303,8 +303,21 @@ class Orchestrator:
         try:
             logger.info(f"Starting QUICK translation for document {document_id} (HUDOC: {use_hudoc}, CURIA: {use_curia}, IATE: {use_iate})")
 
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "starting", 0.05,
+                    "🚀 Rozpoczynam szybkie tłumaczenie..."
+                )
+
             # Faza 1: Ekstrakcja formatów
             logger.info("Phase 1: Extracting document structure")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "extracting", 0.10,
+                    "📄 Analizuję strukturę dokumentu..."
+                )
+
             extracted = self.format_handler.extract(source_path)
             segments = extracted["segments"]
             document_metadata = extracted["document_metadata"]
@@ -318,8 +331,21 @@ class Orchestrator:
 
             logger.info(f"Extracted {len(segments)} segments")
 
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "extracted", 0.20,
+                    f"✓ Wyekstrahowano {len(segments)} segmentów tekstu"
+                )
+
             # Faza 2: Analiza struktury
             logger.info("Phase 2: Parsing structure")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "parsing", 0.25,
+                    "🔍 Rozpoznaję strukturę prawną dokumentu..."
+                )
+
             parsed_segments = await self.structure_parser.parse(segments)
 
             # OPTIONAL: Citation detection (if enabled)
@@ -345,6 +371,13 @@ class Orchestrator:
 
             # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
             logger.info("Phase 3: Loading terminology from TM + optional case law databases")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "loading_terminology", 0.30,
+                    "📚 Wczytuję pamięć tłumaczeniową..."
+                )
+
             terminology = {}
 
             # Zbierz znane terminy z TM dla każdego segmentu
@@ -355,8 +388,25 @@ class Orchestrator:
 
             logger.info(f"Loaded {len(terminology)} terms from Translation Memory")
 
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "loading_tm", 0.35,
+                    f"✓ Wczytano {len(terminology)} terminów z pamięci tłumaczeniowej"
+                )
+
             # Opcjonalnie wzbogać terminologię z HUDOC/CURIA/IATE
             if use_hudoc or use_curia or use_iate:
+                databases = []
+                if use_hudoc: databases.append("HUDOC")
+                if use_curia: databases.append("CURIA")
+                if use_iate: databases.append("IATE")
+
+                if ws_manager:
+                    await ws_manager.broadcast_progress(
+                        document_id, "enriching", 0.40,
+                        f"🔍 Wzbogacam terminologię z baz: {', '.join(databases)}..."
+                    )
+
                 logger.info("Enriching terminology with case law research (quick mode)")
                 try:
                     # Użyj Case Law Researcher do wzbogacenia terminologii
@@ -366,8 +416,13 @@ class Orchestrator:
                         # Zbierz unikalne terminy z TM jako seed terms
                         seed_terms = list(terminology.keys())[:20]  # Limit do 20 terminów dla szybkości
 
-                        for term in seed_terms:
+                        for idx, term in enumerate(seed_terms):
                             if use_hudoc:
+                                if ws_manager:
+                                    await ws_manager.broadcast_progress(
+                                        document_id, "searching_hudoc", 0.40 + (idx / len(seed_terms)) * 0.1,
+                                        f"⚖️ Przeszukuję HUDOC dla terminów... ({idx+1}/{len(seed_terms)})"
+                                    )
                                 hudoc_results = await case_law_researcher.search_term(term, source="hudoc")
                                 if hudoc_results:
                                     # Dodaj znalezione tłumaczenia do terminologii
@@ -376,6 +431,11 @@ class Orchestrator:
                                             terminology[result.get('term_en', term)] = result['term_pl']
 
                             if use_curia:
+                                if ws_manager:
+                                    await ws_manager.broadcast_progress(
+                                        document_id, "searching_curia", 0.50 + (idx / len(seed_terms)) * 0.1,
+                                        f"🏛️ Przeszukuję CURIA dla terminów... ({idx+1}/{len(seed_terms)})"
+                                    )
                                 curia_results = await case_law_researcher.search_term(term, source="curia")
                                 if curia_results:
                                     for result in curia_results[:3]:
@@ -383,6 +443,11 @@ class Orchestrator:
                                             terminology[result.get('term_en', term)] = result['term_pl']
 
                             if use_iate:
+                                if ws_manager:
+                                    await ws_manager.broadcast_progress(
+                                        document_id, "searching_iate", 0.60 + (idx / len(seed_terms)) * 0.1,
+                                        f"🇪🇺 Przeszukuję IATE dla terminów... ({idx+1}/{len(seed_terms)})"
+                                    )
                                 iate_results = await case_law_researcher.search_term(term, source="iate")
                                 if iate_results:
                                     for result in iate_results[:3]:
@@ -390,6 +455,12 @@ class Orchestrator:
                                             terminology[result.get('term_en', term)] = result['term_pl']
 
                         logger.info(f"Enriched terminology: now {len(terminology)} terms (added from case law databases)")
+
+                        if ws_manager:
+                            await ws_manager.broadcast_progress(
+                                document_id, "enriched", 0.70,
+                                f"✓ Wzbogacono terminologię: {len(terminology)} terminów gotowych do tłumaczenia"
+                            )
                 except Exception as e:
                     logger.warning(f"Could not enrich terminology from case law: {e}")
                     # Continue with TM-only terminology

@@ -283,7 +283,8 @@ async def _run_translation(
                 use_hudoc=config.use_hudoc,
                 use_curia=config.use_curia,
                 use_iate=config.use_iate,
-                on_segment_translated=on_segment_translated_callback
+                on_segment_translated=on_segment_translated_callback,
+                ws_manager=ws_manager
             )
             logger.info(f"[Job {job_id}] Orchestrator returned - status: {result.status}, segments: {len(result.segments)}")
 
