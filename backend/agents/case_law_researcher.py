@@ -1,262 +1,238 @@
-"""
-Case Law Researcher Agent.
-Coordinates terminology searches across HUDOC, CURIA, and IATE databases.
-"""
+"""Case Law Researcher - przeszukuje źródła orzecznictwa dla terminologii."""
+
+import logging
+import asyncio
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from services.hudoc_client import HUDOCClient
+from services.curia_client import CURIAClient
 
-from loguru import logger
-
-from backend.services.hudoc_client import HUDOCClient
-from backend.services.curia_client import CURIAClient
-from backend.services.iate_client import IATEClient
-from backend.config import settings
-
-
-@dataclass
-class TerminologyResult:
-    """Result of terminology search from a single source."""
-    term: str
-    translation: Optional[str]
-    confidence: float
-    source: str  # "hudoc", "curia", or "iate"
-    references: List[str]
-    domain: Optional[str] = None
-
-
-@dataclass
-class EnrichedTerm:
-    """Enriched term with results from multiple sources."""
-    term: str
-    best_translation: Optional[str]
-    best_confidence: float
-    best_source: Optional[str]
-    all_results: List[TerminologyResult]
+logger = logging.getLogger(__name__)
 
 
 class CaseLawResearcher:
-    """Agent for researching legal terminology across multiple databases."""
+    """
+    Agent przeszukujący bazy orzeczeń (HUDOC, CURIA) dla terminologii prawniczej.
+
+    Odpowiedzialny za:
+    - Wyszukiwanie terminów w bazach HUDOC i CURIA
+    - Wzbogacanie terminów o oficjalne tłumaczenia
+    - Priorytetyzację wyników na podstawie źródła i pewności
+    """
 
     def __init__(self):
-        self.hudoc_client = HUDOCClient() if settings.hudoc_enabled else None
-        self.curia_client = CURIAClient() if settings.curia_enabled else None
-        self.iate_client = IATEClient() if settings.iate_enabled else None
+        """Inicjalizacja Case Law Researcher."""
+        self.hudoc_client = HUDOCClient()
+        self.curia_client = CURIAClient()
+        logger.info("Case Law Researcher initialized")
 
-        logger.info(
-            f"CaseLawResearcher initialized with: "
-            f"HUDOC={settings.hudoc_enabled}, "
-            f"CURIA={settings.curia_enabled}, "
-            f"IATE={settings.iate_enabled}"
-        )
-
-    async def search_term(
-        self,
-        term: str,
-        source_lang: str = "en",
-        target_lang: str = "pl",
-        sources: Optional[List[str]] = None
-    ) -> EnrichedTerm:
+    async def enrich_terms(
+        self, terms: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
-        Search for a term across all enabled databases.
+        Wzbogaca terminy o wyniki z baz orzeczeń.
 
         Args:
-            term: The term to search for
-            source_lang: Source language code
-            target_lang: Target language code
-            sources: Optional list of sources to search ["hudoc", "curia", "iate"]
-                    If None, searches all enabled sources
+            terms: Lista terminów do wzbogacenia
+                   [{"source_term": "margin of appreciation", ...}, ...]
 
         Returns:
-            EnrichedTerm with results from all sources
+            Lista wzbogaconych terminów z referencjami do orzeczeń
         """
-        if sources is None:
-            sources = []
-            if settings.hudoc_enabled:
-                sources.append("hudoc")
-            if settings.curia_enabled:
-                sources.append("curia")
-            if settings.iate_enabled:
-                sources.append("iate")
+        if not terms:
+            logger.info("No terms to enrich")
+            return []
 
-        logger.info(f"Searching term '{term}' in sources: {sources}")
+        logger.info(f"Enriching {len(terms)} terms with case law research")
 
-        all_results = []
+        enriched_terms = []
+        for term in terms:
+            source_term = term.get("source_term", "")
+            if not source_term:
+                enriched_terms.append(term)
+                continue
 
-        # Search HUDOC
-        if "hudoc" in sources and self.hudoc_client:
-            try:
-                translation, confidence, refs = await self.hudoc_client.search_term(
-                    term, source_lang, target_lang
-                )
-                all_results.append(TerminologyResult(
-                    term=term,
-                    translation=translation,
-                    confidence=confidence,
-                    source="hudoc",
-                    references=refs
-                ))
-            except Exception as e:
-                logger.error(f"HUDOC search failed for '{term}': {e}")
+            # Wzbogać termin o wyniki z baz orzeczeń
+            enriched_term = await self._enrich_single_term(source_term, term)
+            enriched_terms.append(enriched_term)
 
-        # Search CURIA
-        if "curia" in sources and self.curia_client:
-            try:
-                translation, confidence, refs = await self.curia_client.search_term(
-                    term, source_lang, target_lang
-                )
-                all_results.append(TerminologyResult(
-                    term=term,
-                    translation=translation,
-                    confidence=confidence,
-                    source="curia",
-                    references=refs
-                ))
-            except Exception as e:
-                logger.error(f"CURIA search failed for '{term}': {e}")
+        logger.info(f"Enriched {len(enriched_terms)} terms")
+        return enriched_terms
 
-        # Search IATE
-        if "iate" in sources and self.iate_client:
-            try:
-                translation, confidence, refs, domain = await self.iate_client.search_term(
-                    term, source_lang, target_lang
-                )
-                all_results.append(TerminologyResult(
-                    term=term,
-                    translation=translation,
-                    confidence=confidence,
-                    source="iate",
-                    references=refs,
-                    domain=domain
-                ))
-            except Exception as e:
-                logger.error(f"IATE search failed for '{term}': {e}")
-
-        # Find best result
-        best_result = self._select_best_result(all_results)
-
-        return EnrichedTerm(
-            term=term,
-            best_translation=best_result.translation if best_result else None,
-            best_confidence=best_result.confidence if best_result else 0.0,
-            best_source=best_result.source if best_result else None,
-            all_results=all_results
-        )
-
-    async def search_batch(
-        self,
-        terms: List[str],
-        source_lang: str = "en",
-        target_lang: str = "pl",
-        sources: Optional[List[str]] = None
-    ) -> List[EnrichedTerm]:
+    async def _enrich_single_term(
+        self, source_term: str, original_term: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
-        Search for multiple terms across all enabled databases.
+        Wzbogaca pojedynczy termin o wyniki z HUDOC i CURIA.
 
         Args:
-            terms: List of terms to search for
-            source_lang: Source language code
-            target_lang: Target language code
-            sources: Optional list of sources to search
+            source_term: Termin angielski
+            original_term: Oryginalny słownik terminu
 
         Returns:
-            List of EnrichedTerm results
+            Wzbogacony słownik terminu
         """
-        import asyncio
+        try:
+            # Przeszukaj oba źródła równolegle
+            hudoc_results, curia_results = await asyncio.gather(
+                self.hudoc_client.search_term(source_term, max_results=3),
+                self.curia_client.search_term(source_term, max_results=3),
+                return_exceptions=True,
+            )
 
-        tasks = [
-            self.search_term(term, source_lang, target_lang, sources)
-            for term in terms
-        ]
+            # Obsłuż błędy
+            if isinstance(hudoc_results, Exception):
+                logger.error(f"HUDOC search error: {hudoc_results}")
+                hudoc_results = []
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+            if isinstance(curia_results, Exception):
+                logger.error(f"CURIA search error: {curia_results}")
+                curia_results = []
 
-        enriched_results = []
-        for term, result in zip(terms, results):
-            if isinstance(result, Exception):
-                logger.error(f"Batch search failed for '{term}': {result}")
-                enriched_results.append(EnrichedTerm(
-                    term=term,
-                    best_translation=None,
-                    best_confidence=0.0,
-                    best_source=None,
-                    all_results=[]
-                ))
-            else:
-                enriched_results.append(result)
+            # Połącz wyniki
+            all_references = []
 
-        return enriched_results
+            # Dodaj wyniki HUDOC (priorytet 1 - główne źródło dla ETPCz)
+            for result in hudoc_results:
+                all_references.append(
+                    {
+                        "source": "hudoc",
+                        "term_en": result.get("term_en"),
+                        "term_pl": result.get("term_pl"),
+                        "confidence": result.get("confidence", 0.0),
+                        "cases": result.get("cases", []),
+                        "url": result.get("url"),
+                        "priority": 1,  # HUDOC ma najwyższy priorytet dla ETPCz
+                    }
+                )
 
-    def _select_best_result(
+            # Dodaj wyniki CURIA (priorytet 2 - pomocnicze źródło)
+            for result in curia_results:
+                all_references.append(
+                    {
+                        "source": "curia",
+                        "term_en": result.get("term_en"),
+                        "term_pl": result.get("term_pl"),
+                        "confidence": result.get("confidence", 0.0),
+                        "url": result.get("url"),
+                        "priority": 2,  # Niższy priorytet dla CURIA
+                    }
+                )
+
+            # Wybierz najlepsze tłumaczenie
+            best_translation = self._select_best_translation(
+                source_term, all_references, original_term.get("proposed_translation")
+            )
+
+            # Utwórz wzbogacony termin
+            enriched_term = original_term.copy()
+            enriched_term["case_law_references"] = all_references
+            enriched_term["reference_count"] = len(all_references)
+
+            # Jeśli znaleziono lepsze tłumaczenie, zaktualizuj
+            if best_translation:
+                enriched_term["official_translation"] = best_translation["term_pl"]
+                enriched_term["translation_source"] = best_translation["source"]
+                enriched_term["translation_confidence"] = best_translation["confidence"]
+
+                # Jeśli tłumaczenie z baz jest inne niż propozycja, dodaj flagę
+                if best_translation["term_pl"] != original_term.get(
+                    "proposed_translation"
+                ):
+                    enriched_term["has_alternative"] = True
+                    enriched_term["alternative_explanation"] = (
+                        f"Oficjalne tłumaczenie z {best_translation['source'].upper()}"
+                    )
+
+            logger.debug(
+                f"Enriched term '{source_term}' with {len(all_references)} references"
+            )
+            return enriched_term
+
+        except Exception as e:
+            logger.error(f"Error enriching term '{source_term}': {e}")
+            return original_term
+
+    def _select_best_translation(
         self,
-        results: List[TerminologyResult]
-    ) -> Optional[TerminologyResult]:
+        source_term: str,
+        references: List[Dict[str, Any]],
+        proposed_translation: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Select the best result from multiple sources.
-
-        Priority order (when translations available):
-        1. IATE (most reliable EU terminology)
-        2. CURIA (CJEU case law)
-        3. HUDOC (ECHR case law)
+        Wybiera najlepsze tłumaczenie z dostępnych referencji.
 
         Args:
-            results: List of results from different sources
+            source_term: Termin angielski
+            references: Lista referencji z tłumaczeniami
+            proposed_translation: Propozycja tłumaczenia z LLM
 
         Returns:
-            Best result or None
+            Najlepsza referencja lub None
         """
-        # Filter results with translations
-        valid_results = [r for r in results if r.translation]
-
-        if not valid_results:
-            # No translations found, return result with highest confidence
-            # (might have case references even without translation)
-            if results:
-                return max(results, key=lambda r: r.confidence)
+        if not references:
             return None
 
-        # Priority weights for sources
-        source_weights = {
-            "iate": 1.2,   # IATE is most authoritative
-            "curia": 1.0,
-            "hudoc": 0.9
-        }
+        # Sortuj według priorytetu (HUDOC > CURIA) i pewności
+        sorted_refs = sorted(
+            references,
+            key=lambda x: (x["priority"], -x["confidence"]),
+        )
 
-        # Calculate weighted scores
-        def weighted_score(result: TerminologyResult) -> float:
-            weight = source_weights.get(result.source, 1.0)
-            return result.confidence * weight
+        # Wybierz pierwszą (najlepszą)
+        best_ref = sorted_refs[0]
 
-        # Return result with highest weighted score
-        return max(valid_results, key=weighted_score)
+        # Jeśli confidence jest bardzo niskie, zwróć None
+        if best_ref["confidence"] < 0.5:
+            return None
 
-    def get_summary(self, enriched_term: EnrichedTerm) -> Dict[str, Any]:
+        return best_ref
+
+    async def search_term(
+        self, term: str, source: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Get a summary of search results for a term.
+        Wyszukuje termin w określonym źródle lub we wszystkich.
 
         Args:
-            enriched_term: EnrichedTerm to summarize
+            term: Termin do wyszukania
+            source: Źródło ("hudoc", "curia" lub None dla wszystkich)
 
         Returns:
-            Dictionary with summary information
+            Lista wyników
+        """
+        try:
+            if source == "hudoc":
+                return await self.hudoc_client.search_term(term)
+            elif source == "curia":
+                return await self.curia_client.search_term(term)
+            else:
+                # Przeszukaj oba źródła
+                hudoc_results, curia_results = await asyncio.gather(
+                    self.hudoc_client.search_term(term),
+                    self.curia_client.search_term(term),
+                    return_exceptions=True,
+                )
+
+                results = []
+                if not isinstance(hudoc_results, Exception):
+                    results.extend(hudoc_results)
+                if not isinstance(curia_results, Exception):
+                    results.extend(curia_results)
+
+                return results
+
+        except Exception as e:
+            logger.error(f"Error searching term '{term}': {e}")
+            return []
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Zwraca statystyki Case Law Researcher.
+
+        Returns:
+            Słownik ze statystykami
         """
         return {
-            "term": enriched_term.term,
-            "translation": enriched_term.best_translation,
-            "confidence": enriched_term.best_confidence,
-            "source": enriched_term.best_source,
-            "sources_searched": len(enriched_term.all_results),
-            "sources_with_results": sum(
-                1 for r in enriched_term.all_results if r.translation
-            ),
-            "all_translations": [
-                {
-                    "source": r.source,
-                    "translation": r.translation,
-                    "confidence": r.confidence,
-                    "references_count": len(r.references),
-                    "domain": r.domain
-                }
-                for r in enriched_term.all_results
-                if r.translation
-            ]
+            "hudoc": self.hudoc_client.get_stats(),
+            "curia": self.curia_client.get_stats(),
         }

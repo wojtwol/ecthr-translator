@@ -1,230 +1,198 @@
-"""
-CURIA (Court of Justice of the European Union) Client.
-Provides real integration with EUR-Lex CELLAR database via SPARQL for legal terminology search.
-"""
-import asyncio
-from typing import List, Tuple, Optional
+"""CURIA Client - przeszukiwanie bazy orzeczeń TSUE."""
 
+import logging
+from typing import List, Dict, Any, Optional
 import httpx
-from SPARQLWrapper import SPARQLWrapper, JSON
-from loguru import logger
+from config import settings
 
-from backend.config import settings
+logger = logging.getLogger(__name__)
 
 
 class CURIAClient:
-    """Client for searching legal terms in CURIA/EUR-Lex database via SPARQL."""
+    """Klient do przeszukiwania bazy CURIA (Court of Justice of the European Union)."""
 
     def __init__(self):
-        self.sparql_endpoint = settings.eurlex_sparql_endpoint
+        """Inicjalizacja CURIA Client."""
+        self.base_url = settings.curia_base_url
         self.timeout = settings.curia_timeout_seconds
         self.max_retries = settings.curia_max_retries
-        self.use_mock = settings.curia_use_mock
-
-        # Mock data for fallback
-        self._mock_terms = {
-            "legal certainty": ("pewność prawa", 1.0, ["C-104/86 Commission v Italy"]),
-            "proportionality": ("proporcjonalność", 1.0, ["Various CJEU cases"]),
-            "legitimate expectation": ("uzasadnione oczekiwanie", 0.95, ["CJEU case law"]),
-            "direct effect": ("bezpośrednie zastosowanie", 1.0, ["Van Gend en Loos"]),
-            "preliminary ruling": ("orzeczenie prejudycjalne", 1.0, ["Article 267 TFEU"]),
-            "free movement": ("swobodny przepływ", 1.0, ["EU Treaties"]),
-            "state aid": ("pomoc państwa", 1.0, ["Article 107 TFEU"]),
-            "competition law": ("prawo konkurencji", 0.95, ["Articles 101-109 TFEU"]),
-        }
+        self.enabled = settings.curia_enabled
+        logger.info(f"CURIA Client initialized (enabled: {self.enabled})")
 
     async def search_term(
-        self,
-        term: str,
-        source_lang: str = "en",
-        target_lang: str = "pl"
-    ) -> Tuple[Optional[str], float, List[str]]:
+        self, term: str, max_results: int = 5
+    ) -> List[Dict[str, Any]]:
         """
-        Search for a legal term in CURIA/EUR-Lex database.
+        Przeszukuje CURIA w poszukiwaniu terminu.
 
         Args:
-            term: The legal term to search for
-            source_lang: Source language code (default: "en")
-            target_lang: Target language code (default: "pl")
+            term: Termin do wyszukania
+            max_results: Maksymalna liczba wyników
 
         Returns:
-            Tuple of (translation, confidence_score, case_references)
+            Lista słowników z wynikami
         """
-        if self.use_mock:
-            logger.info(f"CURIA: Using mock data for term '{term}'")
-            return self._search_mock(term)
-
-        logger.info(f"CURIA: Searching for term '{term}' ({source_lang} -> {target_lang})")
+        if not self.enabled:
+            logger.info("CURIA is disabled in configuration")
+            return []
 
         try:
-            # Try real search via SPARQL
-            result = await self._search_sparql(term, source_lang, target_lang)
-            if result[0]:  # If translation found
-                return result
-            else:
-                # Fall back to mock if no results
-                logger.warning(f"CURIA: No results found for '{term}', using mock fallback")
-                return self._search_mock(term)
+            logger.info(f"Searching CURIA for term: {term}")
+
+            # Uproszczone wyszukiwanie - w pełnej wersji używałby API CURIA
+            # lub web scraping
+            results = await self._search_simple(term, max_results)
+
+            logger.info(f"Found {len(results)} results in CURIA for '{term}'")
+            return results
 
         except Exception as e:
-            logger.error(f"CURIA: Error searching for '{term}': {e}")
-            # Fall back to mock on error
-            return self._search_mock(term)
+            logger.error(f"Error searching CURIA: {e}")
+            return []
 
-    def _search_mock(self, term: str) -> Tuple[Optional[str], float, List[str]]:
-        """Search using mock data."""
-        term_lower = term.lower()
-
-        # Exact match
-        if term_lower in self._mock_terms:
-            return self._mock_terms[term_lower]
-
-        # Partial match
-        for key, value in self._mock_terms.items():
-            if term_lower in key or key in term_lower:
-                translation, conf, refs = value
-                return (translation, conf * 0.8, refs)  # Lower confidence for partial match
-
-        return (None, 0.0, [])
-
-    async def _search_sparql(
-        self,
-        term: str,
-        source_lang: str,
-        target_lang: str
-    ) -> Tuple[Optional[str], float, List[str]]:
+    async def _search_simple(
+        self, term: str, max_results: int
+    ) -> List[Dict[str, Any]]:
         """
-        Perform real search in EUR-Lex database using SPARQL.
+        Proste wyszukiwanie (mock dla Sprint 3).
 
-        This searches for CJEU case law containing the term and attempts to find
-        translations in the target language.
-        """
-        # Run SPARQL query in thread pool (SPARQLWrapper is synchronous)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            self._execute_sparql_search,
-            term,
-            source_lang,
-            target_lang
-        )
-        return result
-
-    def _execute_sparql_search(
-        self,
-        term: str,
-        source_lang: str,
-        target_lang: str
-    ) -> Tuple[Optional[str], float, List[str]]:
-        """
-        Execute SPARQL query synchronously.
-
-        This query searches for CJEU judgments containing the term.
-        """
-        try:
-            sparql = SPARQLWrapper(self.sparql_endpoint)
-
-            # SPARQL query to find CJEU case law with the term
-            # This is a simplified query - a production version would be more sophisticated
-            query = f"""
-            PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
-            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-            PREFIX dc: <http://purl.org/dc/elements/1.1/>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-
-            SELECT DISTINCT ?case ?title ?celex
-            WHERE {{
-              ?case cdm:resource_legal_id_celex ?celex .
-              ?case dc:title ?title .
-              ?case cdm:resource_legal_is_about-concept_concept ?concept .
-
-              FILTER(CONTAINS(LCASE(STR(?title)), LCASE("{term}")))
-              FILTER(REGEX(?celex, "^6[0-9]{{4}}CJ", "i"))
-
-              FILTER(LANG(?title) = "{source_lang}")
-            }}
-            LIMIT 10
-            """
-
-            sparql.setQuery(query)
-            sparql.setReturnFormat(JSON)
-
-            logger.debug(f"CURIA SPARQL query: {query[:200]}...")
-
-            for attempt in range(self.max_retries):
-                try:
-                    results = sparql.query().convert()
-
-                    case_references = []
-                    for result in results["results"]["bindings"]:
-                        celex = result.get("celex", {}).get("value", "")
-                        title = result.get("title", {}).get("value", "")
-
-                        if celex:
-                            case_ref = f"{celex}"
-                            if title:
-                                case_ref += f" - {title[:100]}"
-                            case_references.append(case_ref)
-
-                    if case_references:
-                        confidence = 0.75  # Medium-high confidence
-                        logger.info(f"CURIA: Found {len(case_references)} cases for '{term}'")
-
-                        # For a full implementation, we would:
-                        # 1. Fetch full documents for these cases
-                        # 2. Extract Polish translations from bilingual documents
-                        # 3. Use NLP to find the term's translation in context
-
-                        # For now, return cases found but no translation
-                        return (None, confidence, case_references)
-
-                    return (None, 0.0, [])
-
-                except Exception as e:
-                    logger.warning(f"CURIA SPARQL error (attempt {attempt + 1}/{self.max_retries}): {e}")
-                    if attempt < self.max_retries - 1:
-                        import time
-                        time.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        raise
-
-        except Exception as e:
-            logger.error(f"CURIA SPARQL execution error: {e}")
-            raise
-
-        return (None, 0.0, [])
-
-    async def search_batch(
-        self,
-        terms: List[str],
-        source_lang: str = "en",
-        target_lang: str = "pl"
-    ) -> List[Tuple[str, Optional[str], float, List[str]]]:
-        """
-        Search for multiple terms in batch.
+        W pełnej implementacji użyłby CURIA API lub web scraping.
 
         Args:
-            terms: List of legal terms to search for
-            source_lang: Source language code
-            target_lang: Target language code
+            term: Termin
+            max_results: Maks. wyników
 
         Returns:
-            List of tuples: (term, translation, confidence, case_references)
+            Lista wyników
         """
-        tasks = [
-            self.search_term(term, source_lang, target_lang)
-            for term in terms
-        ]
+        # Przykładowe known terms z CURIA (terminologia UE)
+        known_curia_terms = {
+            "legal certainty": {
+                "en": "legal certainty",
+                "pl": "pewność prawa",
+                "confidence": 0.95,
+            },
+            "proportionality": {
+                "en": "proportionality",
+                "pl": "proporcjonalność",
+                "confidence": 0.95,
+            },
+            "legitimate expectation": {
+                "en": "legitimate expectation",
+                "pl": "uzasadnione oczekiwanie",
+                "confidence": 0.9,
+            },
+            "direct effect": {
+                "en": "direct effect",
+                "pl": "bezpośrednie zastosowanie",
+                "confidence": 0.95,
+            },
+            "preliminary ruling": {
+                "en": "preliminary ruling",
+                "pl": "orzeczenie prejudycjalne",
+                "confidence": 1.0,
+            },
+            "free movement": {
+                "en": "free movement",
+                "pl": "swobodny przepływ",
+                "confidence": 0.95,
+            },
+            "state aid": {
+                "en": "State aid",
+                "pl": "pomoc państwa",
+                "confidence": 1.0,
+            },
+            "competition law": {
+                "en": "competition law",
+                "pl": "prawo konkurencji",
+                "confidence": 0.95,
+            },
+        }
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Wyszukaj w known terms
+        term_lower = term.lower().strip()
+        results = []
 
-        batch_results = []
-        for term, result in zip(terms, results):
-            if isinstance(result, Exception):
-                logger.error(f"CURIA batch search error for '{term}': {result}")
-                batch_results.append((term, None, 0.0, []))
-            else:
-                translation, confidence, refs = result
-                batch_results.append((term, translation, confidence, refs))
+        for known_term, data in known_curia_terms.items():
+            if term_lower in known_term or known_term in term_lower:
+                result = {
+                    "source": "curia",
+                    "term_en": data["en"],
+                    "term_pl": data["pl"],
+                    "confidence": data["confidence"],
+                    "url": f"{self.base_url}/juris/recherche.jsf?text={known_term.replace(' ', '+')}",
+                }
+                results.append(result)
 
-        return batch_results
+                if len(results) >= max_results:
+                    break
+
+        return results
+
+    async def find_term_translation(
+        self, term_en: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Znajduje polskie tłumaczenie terminu angielskiego.
+
+        Args:
+            term_en: Termin angielski
+
+        Returns:
+            Słownik z tłumaczeniem lub None
+        """
+        results = await self.search_term(term_en, max_results=1)
+
+        if results:
+            return results[0]
+
+        return None
+
+    async def get_multilingual_term(
+        self, term: str, languages: List[str] = None
+    ) -> Optional[Dict[str, str]]:
+        """
+        Pobiera tłumaczenia terminu w wielu językach UE.
+
+        Args:
+            term: Termin do wyszukania
+            languages: Lista kodów języków (np. ['en', 'pl', 'de'])
+
+        Returns:
+            Słownik z tłumaczeniami lub None
+        """
+        if not self.enabled:
+            return None
+
+        languages = languages or ["en", "pl"]
+
+        try:
+            # Mock implementation
+            # W pełnej wersji pobierałby z IATE (Inter-Active Terminology for Europe)
+            result = await self.find_term_translation(term)
+
+            if result:
+                return {
+                    "en": result["term_en"],
+                    "pl": result["term_pl"],
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting multilingual term: {e}")
+            return None
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Zwraca statystyki klienta.
+
+        Returns:
+            Słownik ze statystykami
+        """
+        return {
+            "enabled": self.enabled,
+            "base_url": self.base_url,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+        }

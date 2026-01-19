@@ -1,49 +1,69 @@
-"""
-Configuration module for ECTHR Translator.
-Manages settings for HUDOC, CURIA, and IATE database integrations.
-"""
-from pydantic_settings import BaseSettings
-from typing import Optional
+"""Application configuration using Pydantic Settings."""
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
 
 class Settings(BaseSettings):
-    """Application settings with environment variable support."""
+    """Application settings loaded from environment variables."""
 
-    # Application
-    app_name: str = "ECTHR Translator"
-    debug: bool = False
+    # API Keys
+    anthropic_api_key: str
 
-    # HUDOC (European Court of Human Rights)
+    # Paths
+    tm_path: Path = Path("/tmp/data/tm")
+    upload_path: Path = Path("/tmp/data/uploads")
+    output_path: Path = Path("/tmp/data/outputs")
+
+    # Database
+    database_url: str = "sqlite:////tmp/data/ecthr.db"
+
+    # Server
+    backend_host: str = "0.0.0.0"
+    backend_port: int = 8000
+    log_level: str = "INFO"
+
+    # External Services
     hudoc_base_url: str = "https://hudoc.echr.coe.int"
+    curia_base_url: str = "https://curia.europa.eu"
     hudoc_enabled: bool = True
+    curia_enabled: bool = True
+
+    # Citation Detection (Phase 1: detection only, no fetching)
+    enable_citation_detection: bool = False  # Set to True to enable
+    color_citations_in_docx: bool = True  # Color segments with citations in output DOCX
+
+    # TM Configuration
+    tm_fuzzy_threshold: float = 0.75
+    tm_max_results: int = 10
+    max_tmx_size_mb: int = 500  # Larger limit for TM files
+
+    # Translation Configuration
+    max_file_size_mb: int = 50
+    allowed_extensions: str = ".docx"
+    default_language_pair: str = "EN-PL"
+
+    # Retry Configuration
     hudoc_max_retries: int = 3
     hudoc_timeout_seconds: int = 30
-    hudoc_use_mock: bool = False  # Set to True to use mock data instead of real API
-
-    # CURIA (Court of Justice of the European Union) via EUR-Lex
-    eurlex_sparql_endpoint: str = "https://publications.europa.eu/webapi/rdf/sparql"
-    curia_enabled: bool = True
     curia_max_retries: int = 3
     curia_timeout_seconds: int = 30
-    curia_use_mock: bool = False  # Set to True to use mock data instead of real API
+    claude_max_retries: int = 5
+    claude_timeout_seconds: int = 120
 
-    # IATE (Interactive Terminology for Europe)
-    iate_api_url: str = "https://iate.europa.eu/em-api"
-    iate_enabled: bool = True
-    iate_username: Optional[str] = None  # Set via IATE_USERNAME env var (optional for public API)
-    iate_api_key: Optional[str] = None   # Set via IATE_API_KEY env var (optional for public API)
-    iate_max_retries: int = 3
-    iate_timeout_seconds: int = 30
-    iate_use_mock: bool = False  # Public API works without credentials!
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
-    # General API settings
-    max_concurrent_requests: int = 5
-    cache_ttl_seconds: int = 3600  # 1 hour
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Ensure directories exist
+        self.tm_path.mkdir(parents=True, exist_ok=True)
+        self.upload_path.mkdir(parents=True, exist_ok=True)
+        self.output_path.mkdir(parents=True, exist_ok=True)
 
 
 # Global settings instance

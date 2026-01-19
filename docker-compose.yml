@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecthr-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/ecthr.db}
+      - TM_PATH=${TM_PATH:-/app/data/tm}
+      - UPLOAD_PATH=${UPLOAD_PATH:-/app/data/uploads}
+      - OUTPUT_PATH=${OUTPUT_PATH:-/app/data/outputs}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HUDOC_ENABLED=${HUDOC_ENABLED:-true}
+      - CURIA_ENABLED=${CURIA_ENABLED:-true}
+      - TM_FUZZY_THRESHOLD=${TM_FUZZY_THRESHOLD:-0.75}
+    volumes:
+      - ./data:/app/data
+      - ./backend:/app
+    depends_on:
+      - db
+    networks:
+      - ecthr-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ecthr-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - ecthr-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: ecthr-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-ecthr}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ecthr_password}
+      - POSTGRES_DB=${POSTGRES_DB:-ecthr}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecthr-network
+    restart: unless-stopped
+    # Uncomment for production use
+    # ports:
+    #   - "5432:5432"
+
+volumes:
+  postgres_data:
+
+networks:
+  ecthr-network:
+    driver: bridge

@@ -1,85 +1,106 @@
-"""
-ECTHR Translator - Main FastAPI Application.
+"""ECTHR Translator FastAPI Application."""
 
-A legal terminology translator using HUDOC, CURIA, and IATE databases.
-"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
-import sys
+import logging
 
-from backend.config import settings
-from backend.routers import terminology
+from config import settings
+from routers import documents, translation, glossary, websocket, tm
+from db.database import init_db
 
 # Configure logging
-logger.remove()
-logger.add(
-    sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO" if not settings.debug else "DEBUG"
+logging.basicConfig(
+    level=settings.log_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
     title="ECTHR Translator API",
-    description="""
-    Legal terminology translation API using multiple European legal databases:
-
-    - **HUDOC**: European Court of Human Rights case law
-    - **CURIA**: Court of Justice of the European Union case law (via EUR-Lex)
-    - **IATE**: Interactive Terminology for Europe
-
-    This API provides real integration with these databases for accurate legal terminology translation.
-    """,
+    description="Translation system for European Court of Human Rights judgments",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(terminology.router)
+app.include_router(documents.router, prefix="/api")
+app.include_router(translation.router, prefix="/api")
+app.include_router(glossary.router, prefix="/api")
+app.include_router(tm.router, prefix="/api")
+app.include_router(websocket.router)
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup information."""
-    logger.info("=" * 80)
-    logger.info(f"Starting {settings.app_name}")
-    logger.info("=" * 80)
-    logger.info(f"Debug mode: {settings.debug}")
-    logger.info(f"HUDOC enabled: {settings.hudoc_enabled} (mock: {settings.hudoc_use_mock})")
-    logger.info(f"CURIA enabled: {settings.curia_enabled} (mock: {settings.curia_use_mock})")
-    logger.info(f"IATE enabled: {settings.iate_enabled} (mock: {settings.iate_use_mock})")
-    logger.info("=" * 80)
+    """Application startup tasks."""
+    logger.info("Starting ECTHR Translator API")
+
+    # Ensure data directories exist (critical for Render /tmp storage)
+    import os
+    os.makedirs("/tmp/data", exist_ok=True)
+    os.makedirs(settings.tm_path, exist_ok=True)
+    os.makedirs(settings.upload_path, exist_ok=True)
+    os.makedirs(settings.output_path, exist_ok=True)
+    logger.info("Data directories created")
+
+    # Initialize database
+    init_db()
+    logger.info("Database initialized")
+
+    logger.info(f"Upload path: {settings.upload_path}")
+    logger.info(f"Output path: {settings.output_path}")
+    logger.info(f"TM path: {settings.tm_path}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown tasks."""
+    logger.info("Shutting down ECTHR Translator API")
 
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information."""
+    """Root endpoint."""
     return {
-        "name": settings.app_name,
+        "message": "ECTHR Translator API",
         "version": "1.0.0",
-        "description": "Legal terminology translation API",
         "docs": "/docs",
-        "health": "/api/terminology/health",
-        "sources": "/api/terminology/sources"
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "services": {
+            "hudoc": settings.hudoc_enabled,
+            "curia": settings.curia_enabled,
+        },
+        "features": {
+            "case_law_research": settings.hudoc_enabled or settings.curia_enabled,
+        },
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
-        "backend.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.debug
+        "main:app",
+        host=settings.backend_host,
+        port=settings.backend_port,
+        reload=True,
+        log_level=settings.log_level.lower(),
     )

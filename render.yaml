@@ -1,17 +1,26 @@
 services:
   - type: web
-    name: ecthr-translator
+    name: ecthr-translator-backend
     env: python
     region: frankfurt
     plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    branch: claude/continue-new-thread-Twuij
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: HUDOC_USE_MOCK
-        value: false
-      - key: CURIA_USE_MOCK
-        value: false
-      - key: IATE_USE_MOCK
-        value: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TM_PATH
+        value: /tmp/data/tm
+      - key: UPLOAD_PATH
+        value: /tmp/data/uploads
+      - key: OUTPUT_PATH
+        value: /tmp/data/outputs
+      - key: DATABASE_URL
+        value: sqlite:////tmp/data/ecthr.db
+      - key: BACKEND_HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: INFO
