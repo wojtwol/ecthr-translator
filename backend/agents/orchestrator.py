@@ -164,6 +164,7 @@ class Orchestrator:
         source_path: str,
         on_batch_ready=None,
         batch_size: int = 10,
+        ws_manager=None,
     ):
         """
         Przetwarza dokument w batchach - progresywna ekstrakcja terminów.
@@ -185,8 +186,21 @@ class Orchestrator:
         try:
             logger.info(f"Starting BATCH translation for document {document_id} (batch_size={batch_size})")
 
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "starting", 0.05,
+                    "🚀 Rozpoczynam tłumaczenie z walidacją terminów..."
+                )
+
             # Faza 1: Ekstrakcja formatów
             logger.info("Phase 1: Extracting document structure")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "extracting", 0.10,
+                    "📄 Analizuję strukturę dokumentu..."
+                )
+
             extracted = self.format_handler.extract(source_path)
             all_segments = extracted["segments"]
             document_metadata = extracted["document_metadata"]
@@ -200,8 +214,21 @@ class Orchestrator:
 
             logger.info(f"Extracted {len(all_segments)} segments, processing in batches of {batch_size}")
 
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "extracted", 0.15,
+                    f"✓ Wyekstrahowano {len(all_segments)} segmentów - przetwarzam w batchach po {batch_size}"
+                )
+
             # Faza 2: Analiza struktury wszystkich segmentów
             logger.info("Phase 2: Parsing structure")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "parsing", 0.20,
+                    "🔍 Rozpoznaję strukturę prawną dokumentu..."
+                )
+
             parsed_segments = await self.structure_parser.parse(all_segments)
 
             # Przygotuj znane terminy z TM
@@ -231,6 +258,15 @@ class Orchestrator:
                 is_last_batch = (batch_idx == num_batches - 1)
 
                 logger.info(f"Processing batch {batch_idx + 1}/{num_batches} (segments {start_idx}-{end_idx})")
+
+                # Progress for this batch (30% to 90% spread across all batches)
+                batch_progress = 0.30 + (batch_idx / num_batches) * 0.60
+
+                if ws_manager:
+                    await ws_manager.broadcast_progress(
+                        document_id, "extracting_terms", batch_progress,
+                        f"📝 Ekstrahuję terminy prawnicze... (batch {batch_idx + 1}/{num_batches})"
+                    )
 
                 # Faza 3: Ekstrakcja terminów dla tego batcha
                 batch_terms = await self.term_extractor.extract(batch_segments, known_terms)

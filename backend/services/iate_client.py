@@ -13,7 +13,7 @@ from typing import List, Tuple, Optional, Dict, Any
 import httpx
 from loguru import logger
 
-from backend.config import settings
+from config import settings
 
 
 class IATEClient:

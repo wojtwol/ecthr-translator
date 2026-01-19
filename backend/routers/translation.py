@@ -434,7 +434,8 @@ async def _run_translation(
                 document_id,
                 source_path,
                 on_batch_ready=on_batch_ready,
-                batch_size=10  # Process 10 segments at a time
+                batch_size=10,  # Process 10 segments at a time
+                ws_manager=ws_manager
             )
 
             if result.status == "error":

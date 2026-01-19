@@ -4,7 +4,7 @@ Terminology API routes.
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from backend.models.api_models import (
+from models.api_models import (
     TermSearchRequest,
     TermSearchResponse,
     BatchSearchRequest,
@@ -12,8 +12,8 @@ from backend.models.api_models import (
     SourceResult,
     HealthCheckResponse
 )
-from backend.agents.case_law_researcher import CaseLawResearcher
-from backend.config import settings
+from agents.case_law_researcher import CaseLawResearcher
+from config import settings
 
 router = APIRouter(prefix="/api/terminology", tags=["terminology"])
 
