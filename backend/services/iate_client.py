@@ -8,12 +8,14 @@ https://iate.europa.eu/em-api/entries/_search
 For advanced features, OAuth 2.0 credentials can be obtained from iate@cdt.europa.eu
 """
 import asyncio
+import logging
 from typing import List, Tuple, Optional, Dict, Any
 
 import httpx
-from loguru import logger
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class IATEClient:
@@ -54,40 +56,53 @@ class IATEClient:
         self,
         term: str,
         source_lang: str = "en",
-        target_lang: str = "pl"
-    ) -> Tuple[Optional[str], float, List[str], Optional[str]]:
+        target_lang: str = "pl",
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Search for a term in IATE database using PUBLIC API.
+        Returns list of dictionaries for compatibility with HUDOC/CURIA clients.
 
         Args:
             term: The term to search for
             source_lang: Source language code (default: "en")
             target_lang: Target language code (default: "pl")
+            max_results: Maximum number of results (default: 5)
 
         Returns:
-            Tuple of (translation, confidence_score, iate_ids, domain)
+            List of dictionaries with search results
         """
         if self.use_mock:
             logger.info(f"IATE: Using mock data for term '{term}'")
             translation, conf, ids, domain = self._search_mock(term)
-            return (translation, conf, ids, domain)
+        else:
+            logger.info(f"IATE: Searching for term '{term}' ({source_lang} -> {target_lang})")
+            try:
+                # Try real search via public IATE API
+                translation, conf, ids, domain = await self._search_real(term, source_lang, target_lang)
+                if not translation:
+                    # Fall back to mock if no results
+                    logger.warning(f"IATE: No results found for '{term}', using mock fallback")
+                    translation, conf, ids, domain = self._search_mock(term)
+            except Exception as e:
+                logger.error(f"IATE: Error searching for '{term}': {e}")
+                # Fall back to mock on error
+                translation, conf, ids, domain = self._search_mock(term)
 
-        logger.info(f"IATE: Searching for term '{term}' ({source_lang} -> {target_lang})")
+        # Convert tuple result to list of dicts for compatibility
+        results = []
+        if translation:
+            results.append({
+                "source": "iate",
+                "term_en": term,
+                "term_pl": translation,
+                "confidence": conf,
+                "iate_ids": ids,
+                "domain": domain,
+                "url": f"https://iate.europa.eu/search/standard/{term}",
+            })
 
-        try:
-            # Try real search via public IATE API
-            result = await self._search_real(term, source_lang, target_lang)
-            if result[0]:  # If translation found
-                return result
-            else:
-                # Fall back to mock if no results
-                logger.warning(f"IATE: No results found for '{term}', using mock fallback")
-                return self._search_mock(term)
-
-        except Exception as e:
-            logger.error(f"IATE: Error searching for '{term}': {e}")
-            # Fall back to mock on error
-            return self._search_mock(term)
+        return results[:max_results]
 
     def _search_mock(self, term: str) -> Tuple[Optional[str], float, List[str], Optional[str]]:
         """Search using mock data."""
@@ -236,8 +251,9 @@ class IATEClient:
         self,
         terms: List[str],
         source_lang: str = "en",
-        target_lang: str = "pl"
-    ) -> List[Tuple[str, Optional[str], float, List[str], Optional[str]]]:
+        target_lang: str = "pl",
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Search for multiple terms in batch.
 
@@ -245,12 +261,13 @@ class IATEClient:
             terms: List of terms to search for
             source_lang: Source language code
             target_lang: Target language code
+            max_results: Maximum results per term
 
         Returns:
-            List of tuples: (term, translation, confidence, iate_ids, domain)
+            List of dictionaries with search results for all terms
         """
         tasks = [
-            self.search_term(term, source_lang, target_lang)
+            self.search_term(term, source_lang, target_lang, max_results)
             for term in terms
         ]
 
@@ -260,10 +277,9 @@ class IATEClient:
         for term, result in zip(terms, results):
             if isinstance(result, Exception):
                 logger.error(f"IATE batch search error for '{term}': {result}")
-                batch_results.append((term, None, 0.0, [], None))
             else:
-                translation, confidence, ids, domain = result
-                batch_results.append((term, translation, confidence, ids, domain))
+                # result is already a list of dicts
+                batch_results.extend(result)
 
         return batch_results
 
@@ -280,3 +296,17 @@ class IATEClient:
             "ga", "hr", "hu", "it", "lt", "lv", "mt", "nl", "pl", "pt",
             "ro", "sk", "sl", "sv"
         ]
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get IATE client statistics.
+
+        Returns:
+            Dictionary with statistics
+        """
+        return {
+            "use_mock": self.use_mock,
+            "api_base": self.api_base,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+        }
