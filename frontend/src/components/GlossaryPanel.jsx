@@ -203,6 +203,25 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                     <span className="text-sm font-medium text-blue-600">
                       {term.target_term}
                     </span>
+                    {/* Main source type badge */}
+                    {term.source_type && (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        term.source_type === 'hudoc' ? 'bg-blue-100 text-blue-800' :
+                        term.source_type === 'curia' ? 'bg-indigo-100 text-indigo-800' :
+                        term.source_type === 'iate' ? 'bg-purple-100 text-purple-800' :
+                        term.source_type === 'tm_exact' ? 'bg-green-100 text-green-800' :
+                        term.source_type === 'tm_fuzzy' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {term.source_type === 'hudoc' ? '⚖️ HUDOC' :
+                         term.source_type === 'curia' ? '🏛️ CURIA' :
+                         term.source_type === 'iate' ? '🇪🇺 IATE' :
+                         term.source_type === 'tm_exact' ? '✓ TM (100%)' :
+                         term.source_type === 'tm_fuzzy' ? '≈ TM (fuzzy)' :
+                         term.source_type === 'proposed' ? '💡 Propozycja' :
+                         term.source_type}
+                      </span>
+                    )}
                   </div>
 
                   {term.context && (
@@ -211,12 +230,14 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                     </p>
                   )}
 
+                  {/* Additional sources from case law research */}
                   {term.sources && term.sources.length > 0 && (
                     <div className="flex gap-1 mt-2">
+                      <span className="text-xs text-gray-500 mr-1">Znaleziono też w:</span>
                       {term.sources.map((source, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"
+                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"
                         >
                           {source.source_type === 'hudoc' ? '⚖️ HUDOC' :
                            source.source_type === 'curia' ? '🏛️ CURIA' :
