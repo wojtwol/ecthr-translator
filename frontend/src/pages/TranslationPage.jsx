@@ -716,20 +716,29 @@ const TranslationPage = () => {
               Tłumaczenie zakończone!
             </h2>
             <p className="text-gray-600 mb-6">
-              Dokument został przetłumaczony i jest gotowy do pobrania.
+              Dokument został przetłumaczony z zatwierdzoną terminologią i jest gotowy do pobrania.
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
               <button
-                onClick={() => navigate('/')}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
               >
-                Strona główna
+                👁️ Zobacz tłumaczenie
               </button>
               <button
-                onClick={handleDownload}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                onClick={() => {
+                  handleDownload();
+                  setShowSuccessModal(false);
+                }}
+                className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition-colors"
               >
-                Pobierz
+                ⬇️ Pobierz DOCX
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full px-4 py-2 text-gray-600 hover:text-gray-900 text-sm transition-colors"
+              >
+                ← Wróć do strony głównej
               </button>
             </div>
           </div>
