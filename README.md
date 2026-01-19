@@ -115,6 +115,62 @@ The API will be available at:
 - Interactive docs: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+## Deployment
+
+### Deploy to Render (Recommended) ⭐
+
+**Render is perfect for FastAPI!** Free tier available, auto-deploy from GitHub.
+
+#### Option 1: One-Click Deploy
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repository
+4. Render will automatically detect `render.yaml` and configure everything!
+5. Click **"Create Web Service"**
+
+**Done!** Your API will be live at `https://your-app.onrender.com`
+
+#### Option 2: Manual Setup
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repository
+4. Configure:
+   - **Name**: `ecthr-translator`
+   - **Region**: Frankfurt (closest to EU databases)
+   - **Branch**: `main` or your branch
+   - **Runtime**: Python 3
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+5. **Environment Variables** (optional):
+   ```
+   HUDOC_USE_MOCK=false
+   CURIA_USE_MOCK=false
+   IATE_USE_MOCK=false
+   ```
+6. Click **"Create Web Service"**
+
+**Your API will be live in ~2 minutes!** 🚀
+
+#### Free Tier Limitations
+
+- Service spins down after 15 min of inactivity
+- First request after sleep takes ~30 seconds
+- Perfect for development and testing!
+
+### Deploy to Vercel
+
+Vercel is primarily for frontends, but FastAPI can work:
+
+1. Go to [Vercel Dashboard](https://vercel.com)
+2. Import your GitHub repository
+3. **Settings** → **General** → **Root Directory**: Leave EMPTY (remove "frontend")
+4. The `vercel.json` file will handle the rest
+5. Deploy!
+
+**Note**: Render is recommended for better FastAPI support.
+
 ## API Usage
 
 ### Search single term

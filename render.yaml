@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ecthr-translator
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: HUDOC_USE_MOCK
+        value: false
+      - key: CURIA_USE_MOCK
+        value: false
+      - key: IATE_USE_MOCK
+        value: false
