@@ -277,15 +277,15 @@ class Orchestrator:
             )
 
     async def process_quick(
-        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False, on_segment_translated=None
+        self, document_id: str, source_path: str, use_hudoc: bool = False, use_curia: bool = False, use_iate: bool = False, on_segment_translated=None
     ) -> TranslationResult:
         """
-        Quick translation workflow - uses TM + optionally HUDOC/CURIA, without term extraction and validation.
+        Quick translation workflow - uses TM + optionally HUDOC/CURIA/IATE, without term extraction and validation.
 
         This mode:
         - Extracts document structure
         - Uses Translation Memory for terminology
-        - Optionally enriches with HUDOC/CURIA terminology
+        - Optionally enriches with HUDOC/CURIA/IATE terminology
         - Translates directly
         - Skips term extraction and user validation
         - Completes immediately with final DOCX
@@ -295,12 +295,13 @@ class Orchestrator:
             source_path: Ścieżka do pliku źródłowego
             use_hudoc: Whether to use HUDOC for terminology enrichment
             use_curia: Whether to use CURIA for terminology enrichment
+            use_iate: Whether to use IATE for terminology enrichment
 
         Returns:
             TranslationResult with completed translation
         """
         try:
-            logger.info(f"Starting QUICK translation for document {document_id} (HUDOC: {use_hudoc}, CURIA: {use_curia})")
+            logger.info(f"Starting QUICK translation for document {document_id} (HUDOC: {use_hudoc}, CURIA: {use_curia}, IATE: {use_iate})")
 
             # Faza 1: Ekstrakcja formatów
             logger.info("Phase 1: Extracting document structure")
@@ -354,8 +355,8 @@ class Orchestrator:
 
             logger.info(f"Loaded {len(terminology)} terms from Translation Memory")
 
-            # Opcjonalnie wzbogać terminologię z HUDOC/CURIA
-            if use_hudoc or use_curia:
+            # Opcjonalnie wzbogać terminologię z HUDOC/CURIA/IATE
+            if use_hudoc or use_curia or use_iate:
                 logger.info("Enriching terminology with case law research (quick mode)")
                 try:
                     # Użyj Case Law Researcher do wzbogacenia terminologii
@@ -367,21 +368,28 @@ class Orchestrator:
 
                         for term in seed_terms:
                             if use_hudoc:
-                                hudoc_results = await case_law_researcher.search_hudoc(term)
+                                hudoc_results = await case_law_researcher.search_term(term, source="hudoc")
                                 if hudoc_results:
                                     # Dodaj znalezione tłumaczenia do terminologii
                                     for result in hudoc_results[:3]:  # Top 3 wyniki
-                                        if 'target' in result:
-                                            terminology[result['source']] = result['target']
+                                        if 'term_pl' in result and result['term_pl']:
+                                            terminology[result.get('term_en', term)] = result['term_pl']
 
                             if use_curia:
-                                curia_results = await case_law_researcher.search_curia(term)
+                                curia_results = await case_law_researcher.search_term(term, source="curia")
                                 if curia_results:
                                     for result in curia_results[:3]:
-                                        if 'target' in result:
-                                            terminology[result['source']] = result['target']
+                                        if 'term_pl' in result and result['term_pl']:
+                                            terminology[result.get('term_en', term)] = result['term_pl']
 
-                        logger.info(f"Enriched terminology: now {len(terminology)} terms (added from case law)")
+                            if use_iate:
+                                iate_results = await case_law_researcher.search_term(term, source="iate")
+                                if iate_results:
+                                    for result in iate_results[:3]:
+                                        if 'term_pl' in result and result['term_pl']:
+                                            terminology[result.get('term_en', term)] = result['term_pl']
+
+                        logger.info(f"Enriched terminology: now {len(terminology)} terms (added from case law databases)")
                 except Exception as e:
                     logger.warning(f"Could not enrich terminology from case law: {e}")
                     # Continue with TM-only terminology

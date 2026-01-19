@@ -87,9 +87,10 @@ async def health_check():
         "services": {
             "hudoc": settings.hudoc_enabled,
             "curia": settings.curia_enabled,
+            "iate": not settings.iate_use_mock,
         },
         "features": {
-            "case_law_research": settings.hudoc_enabled or settings.curia_enabled,
+            "case_law_research": settings.hudoc_enabled or settings.curia_enabled or not settings.iate_use_mock,
         },
     }
 

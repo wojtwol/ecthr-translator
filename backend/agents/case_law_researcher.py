@@ -5,25 +5,28 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from services.hudoc_client import HUDOCClient
 from services.curia_client import CURIAClient
+from services.iate_client import IATEClient
 
 logger = logging.getLogger(__name__)
 
 
 class CaseLawResearcher:
     """
-    Agent przeszukujący bazy orzeczeń (HUDOC, CURIA) dla terminologii prawniczej.
+    Agent przeszukujący bazy orzeczeń (HUDOC, CURIA, IATE) dla terminologii prawniczej.
 
     Odpowiedzialny za:
-    - Wyszukiwanie terminów w bazach HUDOC i CURIA
+    - Wyszukiwanie terminów w bazach HUDOC, CURIA i IATE
     - Wzbogacanie terminów o oficjalne tłumaczenia
     - Priorytetyzację wyników na podstawie źródła i pewności
+      (HUDOC > CURIA > IATE)
     """
 
     def __init__(self):
         """Inicjalizacja Case Law Researcher."""
         self.hudoc_client = HUDOCClient()
         self.curia_client = CURIAClient()
-        logger.info("Case Law Researcher initialized")
+        self.iate_client = IATEClient()
+        logger.info("Case Law Researcher initialized with HUDOC, CURIA, and IATE")
 
     async def enrich_terms(
         self, terms: List[Dict[str, Any]]
@@ -72,10 +75,11 @@ class CaseLawResearcher:
             Wzbogacony słownik terminu
         """
         try:
-            # Przeszukaj oba źródła równolegle
-            hudoc_results, curia_results = await asyncio.gather(
+            # Przeszukaj wszystkie trzy źródła równolegle
+            hudoc_results, curia_results, iate_results = await asyncio.gather(
                 self.hudoc_client.search_term(source_term, max_results=3),
                 self.curia_client.search_term(source_term, max_results=3),
+                self.iate_client.search_term(source_term, max_results=3),
                 return_exceptions=True,
             )
 
@@ -87,6 +91,10 @@ class CaseLawResearcher:
             if isinstance(curia_results, Exception):
                 logger.error(f"CURIA search error: {curia_results}")
                 curia_results = []
+
+            if isinstance(iate_results, Exception):
+                logger.error(f"IATE search error: {iate_results}")
+                iate_results = []
 
             # Połącz wyniki
             all_references = []
@@ -115,6 +123,19 @@ class CaseLawResearcher:
                         "confidence": result.get("confidence", 0.0),
                         "url": result.get("url"),
                         "priority": 2,  # Niższy priorytet dla CURIA
+                    }
+                )
+
+            # Dodaj wyniki IATE (priorytet 3 - terminologia ogólna UE)
+            for result in iate_results:
+                all_references.append(
+                    {
+                        "source": "iate",
+                        "term_en": result.get("term_en"),
+                        "term_pl": result.get("term_pl"),
+                        "confidence": result.get("confidence", 0.0),
+                        "url": result.get("url"),
+                        "priority": 3,  # Najniższy priorytet - terminologia ogólna
                     }
                 )
 
@@ -195,7 +216,7 @@ class CaseLawResearcher:
 
         Args:
             term: Termin do wyszukania
-            source: Źródło ("hudoc", "curia" lub None dla wszystkich)
+            source: Źródło ("hudoc", "curia", "iate" lub None dla wszystkich)
 
         Returns:
             Lista wyników
@@ -205,11 +226,14 @@ class CaseLawResearcher:
                 return await self.hudoc_client.search_term(term)
             elif source == "curia":
                 return await self.curia_client.search_term(term)
+            elif source == "iate":
+                return await self.iate_client.search_term(term)
             else:
-                # Przeszukaj oba źródła
-                hudoc_results, curia_results = await asyncio.gather(
+                # Przeszukaj wszystkie trzy źródła
+                hudoc_results, curia_results, iate_results = await asyncio.gather(
                     self.hudoc_client.search_term(term),
                     self.curia_client.search_term(term),
+                    self.iate_client.search_term(term),
                     return_exceptions=True,
                 )
 
@@ -218,6 +242,8 @@ class CaseLawResearcher:
                     results.extend(hudoc_results)
                 if not isinstance(curia_results, Exception):
                     results.extend(curia_results)
+                if not isinstance(iate_results, Exception):
+                    results.extend(iate_results)
 
                 return results
 
@@ -235,4 +261,5 @@ class CaseLawResearcher:
         return {
             "hudoc": self.hudoc_client.get_stats(),
             "curia": self.curia_client.get_stats(),
+            "iate": self.iate_client.get_stats(),
         }

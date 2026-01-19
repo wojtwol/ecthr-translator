@@ -44,6 +44,7 @@ class TranslationConfig(BaseModel):
     workflow_mode: TranslationWorkflowMode = TranslationWorkflowMode.FULL
     use_hudoc: bool = True
     use_curia: bool = True
+    use_iate: bool = True
     fuzzy_threshold: float = 0.75
 
 
