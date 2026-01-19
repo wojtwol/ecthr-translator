@@ -80,6 +80,13 @@ class GlossaryStats(BaseModel):
     edited: int
     rejected: int
 
+    # Source breakdown
+    from_hudoc: int = 0
+    from_curia: int = 0
+    from_tm_exact: int = 0
+    from_tm_fuzzy: int = 0
+    from_proposed: int = 0
+
 
 class GlossaryResponse(BaseModel):
     """Response with list of terms and statistics."""
@@ -87,3 +94,25 @@ class GlossaryResponse(BaseModel):
     total: int
     stats: GlossaryStats
     terms: List[Term]
+
+
+class SourceReportItem(BaseModel):
+    """Single term with source information for reporting."""
+
+    source_term: str
+    target_term: Optional[str] = None
+    source_type: TermSource
+    case_name: Optional[str] = None
+    case_url: Optional[str] = None
+    context: Optional[str] = None
+    status: TermStatus
+
+
+class SourceReport(BaseModel):
+    """Detailed report of term sources."""
+
+    hudoc_terms: List[SourceReportItem] = []
+    curia_terms: List[SourceReportItem] = []
+    tm_exact_terms: List[SourceReportItem] = []
+    tm_fuzzy_terms: List[SourceReportItem] = []
+    proposed_terms: List[SourceReportItem] = []
