@@ -16,7 +16,8 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     setLoading(true);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for cold start
+      // Increased timeout to 120s for Render Free tier cold start (can take 50-60s)
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch(
         `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`,
@@ -34,10 +35,11 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     } catch (error) {
       console.error('Failed to fetch terms:', error);
 
-      // Retry once after 3 seconds if first attempt failed (backend cold start)
-      if (retryCount === 0 && (error.name === 'AbortError' || error.message.includes('fetch'))) {
-        console.log('Retrying terms fetch after backend cold start...');
-        setTimeout(() => fetchTerms(1), 3000);
+      // Retry up to 2 times with longer delays for cold start
+      if (retryCount < 2 && (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('network'))) {
+        const delay = retryCount === 0 ? 5000 : 10000; // 5s, then 10s
+        console.log(`Retrying terms fetch after backend cold start (attempt ${retryCount + 1}/2)...`);
+        setTimeout(() => fetchTerms(retryCount + 1), delay);
       }
     } finally {
       setLoading(false);
@@ -84,6 +86,10 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
     e.stopPropagation(); // Prevent opening modal
 
     try {
+      // Create timeout signal for long cold start
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
       const response = await fetch(
         `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${term.id}`,
         {
@@ -93,8 +99,11 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
             target_term: term.target_term,
             status: action, // 'approved' or 'rejected'
           }),
+          signal: controller.signal,
         }
       );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -103,7 +112,13 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
       fetchTerms(); // Refresh list
     } catch (error) {
       console.error(`Failed to ${action} term:`, error);
-      alert(`Nie udało się ${action === 'approved' ? 'zatwierdzić' : 'odrzucić'} terminu`);
+
+      // Better error message for timeout/cold start
+      if (error.name === 'AbortError') {
+        alert(`Backend się budzi (cold start). Spróbuj ponownie za chwilę.`);
+      } else {
+        alert(`Nie udało się ${action === 'approved' ? 'zatwierdzić' : 'odrzucić'} terminu: ${error.message}`);
+      }
     }
   };
 

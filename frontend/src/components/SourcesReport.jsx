@@ -19,9 +19,17 @@ const SourcesReport = ({ documentId }) => {
     setLoading(true);
     setError(null);
     try {
+      // Create timeout signal for long cold start
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sources-report`
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sources-report`,
+        { signal: controller.signal }
       );
+
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -29,7 +37,13 @@ const SourcesReport = ({ documentId }) => {
       setReport(data);
     } catch (err) {
       console.error('Failed to fetch sources report:', err);
-      setError(err.message);
+
+      // Better error message for timeout
+      if (err.name === 'AbortError') {
+        setError('Backend się budzi (cold start). Odśwież stronę za chwilę.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

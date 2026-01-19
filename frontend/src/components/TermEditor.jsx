@@ -15,6 +15,10 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
   const handleSave = async (status) => {
     setSaving(true);
     try {
+      // Create timeout signal for long cold start
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
       const response = await fetch(
         `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${term.id}`,
         {
@@ -24,8 +28,11 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
             target_term: editedTerm,
             status: status,
           }),
+          signal: controller.signal,
         }
       );
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error('Failed to save term');
@@ -36,7 +43,13 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
       onClose();
     } catch (error) {
       console.error('Failed to save term:', error);
-      alert('Nie udało się zapisać terminu');
+
+      // Better error message for timeout/cold start
+      if (error.name === 'AbortError') {
+        alert('Backend się budzi (cold start). Spróbuj ponownie za chwilę.');
+      } else {
+        alert(`Nie udało się zapisać terminu: ${error.message}`);
+      }
     } finally {
       setSaving(false);
     }
