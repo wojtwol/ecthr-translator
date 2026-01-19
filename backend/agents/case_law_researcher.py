@@ -29,7 +29,7 @@ class CaseLawResearcher:
         logger.info("Case Law Researcher initialized with HUDOC, CURIA, and IATE")
 
     async def enrich_terms(
-        self, terms: List[Dict[str, Any]]
+        self, terms: List[Dict[str, Any]], document_id: Optional[str] = None, ws_manager = None
     ) -> List[Dict[str, Any]]:
         """
         Wzbogaca terminy o wyniki z baz orzeczeń.
@@ -48,33 +48,49 @@ class CaseLawResearcher:
         logger.info(f"Enriching {len(terms)} terms with case law research")
 
         enriched_terms = []
-        for term in terms:
+        for idx, term in enumerate(terms):
             source_term = term.get("source_term", "")
             if not source_term:
                 enriched_terms.append(term)
                 continue
 
+            # Send progress update for each term
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_databases", None,
+                    f"🌐 Przeszukuję HUDOC, CURIA i IATE dla terminu '{source_term}' ({idx + 1}/{len(terms)})..."
+                )
+
             # Wzbogać termin o wyniki z baz orzeczeń
-            enriched_term = await self._enrich_single_term(source_term, term)
+            enriched_term = await self._enrich_single_term(source_term, term, document_id=document_id, ws_manager=ws_manager)
             enriched_terms.append(enriched_term)
 
         logger.info(f"Enriched {len(enriched_terms)} terms")
         return enriched_terms
 
     async def _enrich_single_term(
-        self, source_term: str, original_term: Dict[str, Any]
+        self, source_term: str, original_term: Dict[str, Any], document_id: Optional[str] = None, ws_manager = None
     ) -> Dict[str, Any]:
         """
-        Wzbogaca pojedynczy termin o wyniki z HUDOC i CURIA.
+        Wzbogaca pojedynczy termin o wyniki z HUDOC, CURIA i IATE.
 
         Args:
             source_term: Termin angielski
             original_term: Oryginalny słownik terminu
+            document_id: ID dokumentu (do progress updates)
+            ws_manager: WebSocket manager (do progress updates)
 
         Returns:
             Wzbogacony słownik terminu
         """
         try:
+            # Send detailed progress for each database
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_hudoc", None,
+                    f"   📚 Przeszukuję bazę HUDOC dla '{source_term}'..."
+                )
+
             # Przeszukaj wszystkie trzy źródła równolegle
             hudoc_results, curia_results, iate_results = await asyncio.gather(
                 self.hudoc_client.search_term(source_term, max_results=3),
@@ -87,14 +103,41 @@ class CaseLawResearcher:
             if isinstance(hudoc_results, Exception):
                 logger.error(f"HUDOC search error: {hudoc_results}")
                 hudoc_results = []
+            elif ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "hudoc_done", None,
+                    f"   ✓ HUDOC: znaleziono {len(hudoc_results)} wyników"
+                )
+
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_curia", None,
+                    f"   📚 Przeszukuję bazę CURIA dla '{source_term}'..."
+                )
 
             if isinstance(curia_results, Exception):
                 logger.error(f"CURIA search error: {curia_results}")
                 curia_results = []
+            elif ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "curia_done", None,
+                    f"   ✓ CURIA: znaleziono {len(curia_results)} wyników"
+                )
+
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_iate", None,
+                    f"   📚 Przeszukuję bazę IATE dla '{source_term}'..."
+                )
 
             if isinstance(iate_results, Exception):
                 logger.error(f"IATE search error: {iate_results}")
                 iate_results = []
+            elif ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "iate_done", None,
+                    f"   ✓ IATE: znaleziono {len(iate_results)} wyników"
+                )
 
             # Połącz wyniki
             all_references = []

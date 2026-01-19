@@ -48,6 +48,8 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         self,
         segments: List[Dict[str, Any]],
         terminology: Dict[str, str],
+        document_id: Optional[str] = None,
+        ws_manager = None,
     ) -> List[Dict[str, Any]]:
         """
         Tłumaczy segmenty z wykorzystaniem terminologii.
@@ -55,6 +57,8 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         Args:
             segments: Lista segmentów do przetłumaczenia
             terminology: Słownik terminologii {source: target}
+            document_id: ID dokumentu (do progress updates)
+            ws_manager: WebSocket manager (do progress updates)
 
         Returns:
             Lista przetłumaczonych segmentów
@@ -78,6 +82,13 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
                 match_type = "new"  # new, exact, fuzzy, or api
 
                 if self.tm_manager:
+                    # Send progress message about TM lookup
+                    if ws_manager and document_id and i % 5 == 0:  # Send every 5 segments to avoid spam
+                        await ws_manager.broadcast_progress(
+                            document_id, "checking_tm", None,
+                            f"💾 Sprawdzam pamięć tłumaczeniową... (segment {i+1}/{len(segments)})"
+                        )
+
                     # Exact match
                     exact_match = self.tm_manager.find_exact(source_text)
                     if exact_match:
