@@ -8,6 +8,7 @@ const HomePage = () => {
   const [config, setConfig] = useState({
     useHudoc: true,
     useCuria: true,
+    useIate: true,
   });
 
   const handleUploadSuccess = (data) => {
@@ -72,6 +73,18 @@ const HomePage = () => {
                 />
                 <span className="text-sm text-gray-700">
                   Przeszukuj CURIA
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.useIate}
+                  onChange={(e) => setConfig({ ...config, useIate: e.target.checked })}
+                  className="w-5 h-5 text-primary-600 rounded focus:ring-primary-600"
+                />
+                <span className="text-sm text-gray-700">
+                  Przeszukuj IATE 🇪🇺
                 </span>
               </label>
             </div>
