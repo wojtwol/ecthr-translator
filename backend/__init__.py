@@ -1,0 +1,1 @@
+"""ECTHR Translator backend package."""
