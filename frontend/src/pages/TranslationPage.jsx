@@ -133,6 +133,14 @@ const TranslationPage = () => {
     }
   };
 
+  const handleExportGlossaryAll = () => {
+    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/all`;
+  };
+
+  const handleExportGlossaryApproved = () => {
+    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/approved`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -530,11 +538,18 @@ const TranslationPage = () => {
                     ⬇ Pobierz DOCX
                   </button>
                   <button
+                    onClick={handleExportGlossaryApproved}
+                    className="px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                    title="Eksportuj zatwierdzoną terminologię do CSV"
+                  >
+                    📚 Glosariusz
+                  </button>
+                  <button
                     onClick={handleExportTM}
                     className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
                     title="Eksportuj pamięć tłumaczeniową tylko z tego projektu"
                   >
-                    📥 Eksportuj TM
+                    📥 TM
                   </button>
                   <button
                     onClick={handleUpdateTM}
@@ -598,9 +613,18 @@ const TranslationPage = () => {
 
             {/* View Terminology Section */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                📚 Terminologia
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  📚 Terminologia
+                </h3>
+                <button
+                  onClick={handleExportGlossaryApproved}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                  title="Eksportuj zatwierdzone terminy do CSV"
+                >
+                  📥 Eksportuj zatwierdzone
+                </button>
+              </div>
               <GlossaryPanel
                 documentId={documentId}
                 onTermSelect={handleTermSelect}
@@ -659,6 +683,13 @@ const TranslationPage = () => {
                       </p>
                     )}
                   </div>
+                  <button
+                    onClick={handleExportGlossaryAll}
+                    className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm whitespace-nowrap"
+                    title="Eksportuj wszystkie terminy do CSV"
+                  >
+                    📥 Eksportuj glosariusz
+                  </button>
                 </div>
               </div>
             )}
@@ -775,13 +806,23 @@ const TranslationPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
+                    handleExportGlossaryApproved();
+                    setShowSuccessModal(false);
+                  }}
+                  className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold shadow-md transition-colors text-sm"
+                  title="Eksportuj glosariusz"
+                >
+                  📚 Glosariusz
+                </button>
+                <button
+                  onClick={() => {
                     handleExportTM();
                     setShowSuccessModal(false);
                   }}
                   className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors text-sm"
                   title="Eksportuj TM projektu"
                 >
-                  📥 Eksportuj TM
+                  📥 TM
                 </button>
                 <button
                   onClick={async () => {

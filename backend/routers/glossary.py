@@ -1,10 +1,13 @@
 """Glossary management endpoints."""
 
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import StreamingResponse
 from typing import List, Dict
 from sqlalchemy.orm import Session
 import uuid
 from datetime import datetime
+import io
+import csv
 
 from models.term import (
     Term,
@@ -243,4 +246,162 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
         tm_exact_terms=tm_exact_terms,
         tm_fuzzy_terms=tm_fuzzy_terms,
         proposed_terms=proposed_terms,
+    )
+
+
+@router.get("/{document_id}/export/all")
+async def export_all_terms(document_id: str, db: Session = Depends(get_db)):
+    """
+    Eksport wszystkich terminów do CSV (przed zatwierdzeniem).
+
+    Args:
+        document_id: ID dokumentu
+        db: Sesja bazy danych
+
+    Returns:
+        Plik CSV ze wszystkimi terminami
+    """
+    # Sprawdź czy dokument istnieje
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Pobierz wszystkie terminy
+    all_terms = db.query(models.Term).filter(
+        models.Term.document_id == document_id
+    ).order_by(models.Term.source_term).all()
+
+    if not all_terms:
+        raise HTTPException(status_code=404, detail="No terms found for this document")
+
+    # Utwórz CSV w pamięci
+    output = io.StringIO()
+    # UTF-8 BOM dla polskich znaków w Excelu
+    output.write('\ufeff')
+
+    writer = csv.writer(output, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    # Header
+    writer.writerow([
+        'Source Term (EN)',
+        'Target Term (PL)',
+        'Source Type',
+        'Status',
+        'Confidence',
+        'Case Name',
+        'Context'
+    ])
+
+    # Data rows
+    for term in all_terms:
+        case_name = ""
+        context = ""
+
+        if term.references:
+            if isinstance(term.references, dict):
+                case_name = term.references.get("case_name", "")
+                context = term.references.get("context", "")
+
+        writer.writerow([
+            term.source_term,
+            term.target_term or "",
+            term.source_type,
+            term.status,
+            f"{term.confidence:.2f}",
+            case_name,
+            context
+        ])
+
+    # Przygotuj response
+    output.seek(0)
+    filename = f"glossary_all_{document_id}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.get("/{document_id}/export/approved")
+async def export_approved_terms(document_id: str, db: Session = Depends(get_db)):
+    """
+    Eksport tylko zatwierdzonych terminów do CSV (po zatwierdzeniu).
+
+    Args:
+        document_id: ID dokumentu
+        db: Sesja bazy danych
+
+    Returns:
+        Plik CSV z zatwierdzonymi terminami
+    """
+    # Sprawdź czy dokument istnieje
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Pobierz tylko zatwierdzone terminy (approved + edited)
+    approved_terms = db.query(models.Term).filter(
+        models.Term.document_id == document_id,
+        models.Term.status.in_(["approved", "edited"])
+    ).order_by(models.Term.source_term).all()
+
+    if not approved_terms:
+        raise HTTPException(
+            status_code=404,
+            detail="No approved terms found for this document"
+        )
+
+    # Utwórz CSV w pamięci
+    output = io.StringIO()
+    # UTF-8 BOM dla polskich znaków w Excelu
+    output.write('\ufeff')
+
+    writer = csv.writer(output, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    # Header
+    writer.writerow([
+        'Source Term (EN)',
+        'Target Term (PL)',
+        'Source Type',
+        'Status',
+        'Confidence',
+        'Original Proposal',
+        'Case Name',
+        'Context'
+    ])
+
+    # Data rows
+    for term in approved_terms:
+        case_name = ""
+        context = ""
+
+        if term.references:
+            if isinstance(term.references, dict):
+                case_name = term.references.get("case_name", "")
+                context = term.references.get("context", "")
+
+        writer.writerow([
+            term.source_term,
+            term.target_term or "",
+            term.source_type,
+            term.status,
+            f"{term.confidence:.2f}",
+            term.original_proposal or "",
+            case_name,
+            context
+        ])
+
+    # Przygotuj response
+    output.seek(0)
+    filename = f"glossary_approved_{document_id}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
     )
