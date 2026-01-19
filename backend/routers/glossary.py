@@ -62,6 +62,7 @@ async def get_glossary(
         # Source breakdown
         from_hudoc=len([t for t in all_terms if t.source_type == "hudoc"]),
         from_curia=len([t for t in all_terms if t.source_type == "curia"]),
+        from_iate=len([t for t in all_terms if t.source_type == "iate"]),
         from_tm_exact=len([t for t in all_terms if t.source_type == "tm_exact"]),
         from_tm_fuzzy=len([t for t in all_terms if t.source_type == "tm_fuzzy"]),
         from_proposed=len([t for t in all_terms if t.source_type == "proposed"]),
@@ -77,6 +78,25 @@ async def get_glossary(
     # Convert DB models to Pydantic models
     terms_list = []
     for t in doc_terms:
+        # Extract sources from references
+        sources_list = []
+        context = None
+        if t.references and isinstance(t.references, dict):
+            context = t.references.get("context")
+
+            # Check for case_law_references (list of source objects from CaseLawResearcher)
+            case_law_refs = t.references.get("case_law_references", [])
+            if case_law_refs:
+                for ref in case_law_refs:
+                    if isinstance(ref, dict):
+                        source_info = {
+                            "source_type": ref.get("source", "unknown"),
+                            "case_name": ref.get("case_name"),
+                            "url": ref.get("url"),
+                            "context": ref.get("context"),
+                        }
+                        sources_list.append(source_info)
+
         term_dict = {
             "id": t.id,
             "document_id": t.document_id,
@@ -87,8 +107,8 @@ async def get_glossary(
             "confidence": t.confidence,
             "references": [],  # Database stores as dict, but Pydantic expects list - context extracted separately
             "status": t.status,
-            "context": t.references.get("context") if t.references else None,
-            "sources": [],
+            "context": context,
+            "sources": sources_list,
             "created_at": t.created_at,
             "updated_at": t.updated_at,
         }
@@ -136,6 +156,25 @@ async def update_term(document_id: str, term_id: str, update: TermUpdate, db: Se
     db.commit()
     db.refresh(term)
 
+    # Extract sources from references
+    sources_list = []
+    context = None
+    if term.references and isinstance(term.references, dict):
+        context = term.references.get("context")
+
+        # Check for case_law_references
+        case_law_refs = term.references.get("case_law_references", [])
+        if case_law_refs:
+            for ref in case_law_refs:
+                if isinstance(ref, dict):
+                    source_info = {
+                        "source_type": ref.get("source", "unknown"),
+                        "case_name": ref.get("case_name"),
+                        "url": ref.get("url"),
+                        "context": ref.get("context"),
+                    }
+                    sources_list.append(source_info)
+
     return Term(
         id=term.id,
         document_id=term.document_id,
@@ -146,8 +185,8 @@ async def update_term(document_id: str, term_id: str, update: TermUpdate, db: Se
         confidence=term.confidence,
         references=[],  # Database stores as dict, but Pydantic expects list - context extracted separately
         status=term.status,
-        context=term.references.get("context") if term.references else None,
-        sources=[],
+        context=context,
+        sources=sources_list,
         created_at=term.created_at,
         updated_at=term.updated_at,
     )
@@ -214,6 +253,7 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
     # Group terms by source type
     hudoc_terms = []
     curia_terms = []
+    iate_terms = []
     tm_exact_terms = []
     tm_fuzzy_terms = []
     proposed_terms = []
@@ -235,6 +275,8 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
             hudoc_terms.append(item)
         elif t.source_type == "curia":
             curia_terms.append(item)
+        elif t.source_type == "iate":
+            iate_terms.append(item)
         elif t.source_type == "tm_exact":
             tm_exact_terms.append(item)
         elif t.source_type == "tm_fuzzy":
@@ -245,6 +287,7 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
     return SourceReport(
         hudoc_terms=hudoc_terms,
         curia_terms=curia_terms,
+        iate_terms=iate_terms,
         tm_exact_terms=tm_exact_terms,
         tm_fuzzy_terms=tm_fuzzy_terms,
         proposed_terms=proposed_terms,

@@ -139,7 +139,10 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-sm font-medium text-blue-900">
-                        {source.source_type === 'hudoc' ? '⚖️ HUDOC' : '🏛️ CURIA'}
+                        {source.source_type === 'hudoc' ? '⚖️ HUDOC' :
+                         source.source_type === 'curia' ? '🏛️ CURIA' :
+                         source.source_type === 'iate' ? '🇪🇺 IATE' :
+                         source.source_type}
                       </span>
                       {source.case_name && (
                         <span className="text-xs text-blue-700">

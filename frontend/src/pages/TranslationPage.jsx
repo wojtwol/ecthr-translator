@@ -34,6 +34,7 @@ const TranslationPage = () => {
   const [useIate, setUseIate] = useState(true);
   const [documentStats, setDocumentStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [glossaryRefreshTrigger, setGlossaryRefreshTrigger] = useState(0);
 
   // Polling backup for terms when WebSocket fails during validation
   useEffect(() => {
@@ -91,6 +92,7 @@ const TranslationPage = () => {
   const handleTermSave = async (updatedTerm) => {
     setSelectedTerm(null);
     await refreshTerms();
+    setGlossaryRefreshTrigger(prev => prev + 1); // Trigger GlossaryPanel refresh
   };
 
   const handleFinalize = async () => {
@@ -642,6 +644,7 @@ const TranslationPage = () => {
                 documentId={documentId}
                 onTermSelect={handleTermSelect}
                 onApproveAll={refreshTerms}
+                refreshTrigger={glossaryRefreshTrigger}
               />
             </div>
           </>
@@ -759,6 +762,7 @@ const TranslationPage = () => {
                   documentId={documentId}
                   onTermSelect={handleTermSelect}
                   onApproveAll={refreshTerms}
+                  refreshTrigger={glossaryRefreshTrigger}
                 />
               </div>
             )}

@@ -13,6 +13,7 @@ class TermSource(str, Enum):
     TM_FUZZY = "tm_fuzzy"
     HUDOC = "hudoc"
     CURIA = "curia"
+    IATE = "iate"
     PROPOSED = "proposed"
 
 
@@ -32,6 +33,15 @@ class TermReference(BaseModel):
     case_name: Optional[str] = None
     url: Optional[str] = None
     confidence: Optional[float] = None
+
+
+class TermSourceInfo(BaseModel):
+    """Information about a specific source of term translation (for frontend display)."""
+
+    source_type: str  # 'hudoc', 'curia', 'iate'
+    case_name: Optional[str] = None
+    url: Optional[str] = None
+    context: Optional[str] = None
 
 
 class TermCreate(BaseModel):
@@ -57,6 +67,8 @@ class Term(BaseModel):
     status: TermStatus
     original_proposal: Optional[str] = None
     references: Optional[List[TermReference]] = None
+    context: Optional[str] = None  # Context where term appears
+    sources: Optional[List[TermSourceInfo]] = None  # Sources where term was found (HUDOC/CURIA/IATE)
     occurrences: Optional[int] = None
     created_at: datetime
     updated_at: datetime
@@ -83,6 +95,7 @@ class GlossaryStats(BaseModel):
     # Source breakdown
     from_hudoc: int = 0
     from_curia: int = 0
+    from_iate: int = 0
     from_tm_exact: int = 0
     from_tm_fuzzy: int = 0
     from_proposed: int = 0
@@ -113,6 +126,7 @@ class SourceReport(BaseModel):
 
     hudoc_terms: List[SourceReportItem] = []
     curia_terms: List[SourceReportItem] = []
+    iate_terms: List[SourceReportItem] = []
     tm_exact_terms: List[SourceReportItem] = []
     tm_fuzzy_terms: List[SourceReportItem] = []
     proposed_terms: List[SourceReportItem] = []

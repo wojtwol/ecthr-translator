@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ProgressBar from './ProgressBar';
 
-const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
+const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger }) => {
   const [terms, setTerms] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -10,7 +10,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
 
   useEffect(() => {
     fetchTerms();
-  }, [documentId, filter, currentPage]);
+  }, [documentId, filter, currentPage, refreshTrigger]);
 
   const fetchTerms = async (retryCount = 0) => {
     setLoading(true);
@@ -218,7 +218,10 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll }) => {
                           key={idx}
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"
                         >
-                          {source.source_type === 'hudoc' ? '⚖️ HUDOC' : '🏛️ CURIA'}
+                          {source.source_type === 'hudoc' ? '⚖️ HUDOC' :
+                           source.source_type === 'curia' ? '🏛️ CURIA' :
+                           source.source_type === 'iate' ? '🇪🇺 IATE' :
+                           source.source_type}
                         </span>
                       ))}
                     </div>
