@@ -5,6 +5,7 @@ import GlossaryPanel from '../components/GlossaryPanel';
 import TermEditor from '../components/TermEditor';
 import TranslationPreview from '../components/TranslationPreview';
 import ProgressBar from '../components/ProgressBar';
+import SourcesReport from '../components/SourcesReport';
 
 const TranslationPage = () => {
   const { documentId } = useParams();
@@ -551,6 +552,11 @@ const TranslationPage = () => {
                 </div>
               </div>
             )}
+
+            {/* Sources Report Section */}
+            <div className="mb-6">
+              <SourcesReport documentId={documentId} />
+            </div>
 
             {/* View Terminology Section */}
             <div className="bg-white rounded-lg shadow p-6">
