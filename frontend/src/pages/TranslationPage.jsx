@@ -134,11 +134,11 @@ const TranslationPage = () => {
   };
 
   const handleExportGlossaryAll = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/all`;
+    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/all/xlsx`;
   };
 
   const handleExportGlossaryApproved = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/approved`;
+    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/approved/xlsx`;
   };
 
   if (loading) {
