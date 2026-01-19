@@ -93,7 +93,7 @@ const TranslationPage = () => {
 
   const handleFinalize = async () => {
     if (!stats || stats.pending > 0) {
-      if (!confirm(`Masz jeszcze ${stats.pending} terminów do zatwierdzenia. Czy na pewno chcesz zakończyć?`)) {
+      if (!confirm(`Masz jeszcze ${stats.pending} terminów do zatwierdzenia. Czy na pewno chcesz przetłumaczyć dokument z niezatwierdzoną terminologią?`)) {
         return;
       }
     }
@@ -195,9 +195,9 @@ const TranslationPage = () => {
               {translationStatus === 'validating' && stats && stats.pending === 0 && (
                 <button
                   onClick={handleFinalize}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md"
                 >
-                  ✓ Zakończ tłumaczenie
+                  🔄 Przetłumacz z zatwierdzoną terminologią
                 </button>
               )}
             </div>
@@ -617,7 +617,7 @@ const TranslationPage = () => {
                       </p>
                     ) : (
                       <p className="text-xs text-green-800 mt-1 font-medium">
-                        ✅ Wszystkie terminy zatwierdzone! Kliknij "Zakończ tłumaczenie" aby wygenerować finalne DOCX.
+                        ✅ Wszystkie terminy zatwierdzone! Kliknij "Przetłumacz z zatwierdzoną terminologią" aby wygenerować finalne tłumaczenie z poprawną terminologią.
                       </p>
                     )}
                   </div>
