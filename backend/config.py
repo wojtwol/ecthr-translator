@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     hudoc_enabled: bool = True
     curia_enabled: bool = True
 
+    # Citation Detection (Phase 1: detection only, no fetching)
+    enable_citation_detection: bool = False  # Set to True to enable
+
     # TM Configuration
     tm_fuzzy_threshold: float = 0.75
     tm_max_results: int = 10

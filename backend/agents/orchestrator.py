@@ -10,6 +10,7 @@ from agents.term_extractor import TermExtractor
 from agents.translator import Translator
 from agents.change_implementer import ChangeImplementer
 from agents.qa_reviewer import QAReviewer
+from agents.citation_detector import CitationDetector
 from services.tm_manager import TMManager
 from config import settings
 
@@ -48,6 +49,12 @@ class Orchestrator:
         self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
         self.qa_reviewer = QAReviewer()
+
+        # Citation detector (optional, controlled by feature flag)
+        self.citation_detector = None
+        if settings.enable_citation_detection:
+            self.citation_detector = CitationDetector()
+            logger.info("Citation detection ENABLED (detection-only mode)")
 
         # Załaduj TM jeśli istnieje
         try:
@@ -313,6 +320,27 @@ class Orchestrator:
             # Faza 2: Analiza struktury
             logger.info("Phase 2: Parsing structure")
             parsed_segments = await self.structure_parser.parse(segments)
+
+            # OPTIONAL: Citation detection (if enabled)
+            if self.citation_detector:
+                logger.info("Phase 2.5: Detecting case citations (optional feature)")
+                try:
+                    # Reconstruct source text from segments
+                    source_text = "\n".join([seg.get("text", "") for seg in segments])
+                    citations = self.citation_detector.detect_citations(source_text)
+
+                    if citations["total"] > 0:
+                        summary = self.citation_detector.get_summary(citations)
+                        logger.info(summary)
+                    else:
+                        logger.info("No case citations detected in source text")
+
+                    # Phase 1: Only log results, do not fetch terminology yet
+                    # Phase 2 (future): Will fetch terms from cited cases
+
+                except Exception as e:
+                    logger.warning(f"Citation detection failed (non-critical): {e}")
+                    # Continue with normal flow - this is optional feature
 
             # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
             logger.info("Phase 3: Loading terminology from TM + optional case law databases")
