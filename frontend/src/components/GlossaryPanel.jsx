@@ -20,7 +20,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}`,
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}&per_page=200`,
         { signal: controller.signal }
       );
       clearTimeout(timeoutId);
@@ -284,6 +284,42 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
           ))
         )}
       </div>
+
+      {/* Pagination controls */}
+      {stats && stats.total > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
+          <div className="text-sm text-gray-700">
+            Pokazuję terminy {(currentPage - 1) * 200 + 1}-{Math.min(currentPage * 200, stats.total)} z {stats.total}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                currentPage === 1
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              ← Poprzednia
+            </button>
+            <span className="px-3 py-1 text-sm font-medium text-gray-700">
+              Strona {currentPage} / {Math.ceil(stats.total / 200)}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage >= Math.ceil(stats.total / 200)}
+              className={`px-3 py-1 rounded text-sm font-medium ${
+                currentPage >= Math.ceil(stats.total / 200)
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              Następna →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
