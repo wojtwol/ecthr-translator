@@ -120,6 +120,20 @@ class HUDOCClient:
         if not query_keywords or not known_keywords:
             return 0.0
 
+        # CRITICAL FIX: Prevent single-word queries from matching multi-word phrases
+        # "court" (1 word) should NEVER match "access to court" (3 words)
+        # They are completely different legal concepts!
+        query_word_count = len(query_term.split())
+        known_word_count = len(known_term.split())
+
+        # Strict word count matching for short queries (1-2 words)
+        # Single-word query can ONLY match 1-2 word terms (not 3+)
+        # Two-word query can ONLY match 1-3 word terms (not 4+)
+        if query_word_count <= 2:
+            max_allowed_diff = 1  # Allow difference of max 1 word
+            if abs(query_word_count - known_word_count) > max_allowed_diff:
+                return 0.0  # Reject - word count too different for short query
+
         # Calculate keyword overlap
         common_keywords = query_keywords.intersection(known_keywords)
         if not common_keywords:
@@ -129,11 +143,18 @@ class HUDOCClient:
         query_coverage = len(common_keywords) / len(query_keywords)
         known_coverage = len(common_keywords) / len(known_keywords)
 
-        # CRITICAL FIX: Require BOTH sides to have at least 50% match
-        # "district court judge" (33% match) should NOT match "access to court" (50% match)
-        # Both must be >= 0.5 to avoid false positives
-        if query_coverage < 0.5 or known_coverage < 0.5:
-            return 0.0  # Reject - insufficient match on at least one side
+        # CRITICAL FIX: Stricter coverage requirements for short queries
+        # Short queries (1-2 words) need HIGHER coverage to avoid false positives
+        # "District Court" (50%) should NOT match "access to court" (50%)
+        # They are different legal concepts despite sharing "court"
+        if query_word_count <= 2:
+            # Require 70% coverage for both sides (was 50%)
+            if query_coverage < 0.7 or known_coverage < 0.7:
+                return 0.0  # Reject - insufficient match for short query
+        else:
+            # For longer queries (3+ words), keep 50% threshold
+            if query_coverage < 0.5 or known_coverage < 0.5:
+                return 0.0  # Reject - insufficient match on at least one side
 
         # Use average of both coverages
         avg_coverage = (query_coverage + known_coverage) / 2
