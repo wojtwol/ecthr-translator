@@ -1,7 +1,6 @@
 """Change Implementer - wdraża zatwierdzone zmiany terminów do tłumaczenia."""
 
 import logging
-import re
 from typing import List, Dict, Any
 from anthropic import Anthropic
 from config import settings
@@ -50,38 +49,50 @@ class ChangeImplementer:
         try:
             logger.info(f"Implementing changes for {len(validated_terms)} terms")
 
-            # Filtruj tylko terminy edytowane (zmienione przez użytkownika)
-            edited_terms = [
+            # FIXED: Aplikuj WSZYSTKIE zatwierdzone i edytowane terminy, nie tylko edited
+            # Użytkownik zatwierdza termin = chce go użyć w tłumaczeniu
+            approved_terms = [
                 t for t in validated_terms
-                if t.get("status") == "edited" and t.get("original_proposal") != t.get("target_term")
+                if t.get("status") in ["approved", "edited"]
             ]
 
-            if not edited_terms:
-                logger.info("No edited terms to implement")
+            if not approved_terms:
+                logger.info("No approved or edited terms to implement")
                 return segments
 
-            logger.info(f"Found {len(edited_terms)} edited terms to implement")
+            logger.info(f"Found {len(approved_terms)} approved/edited terms to implement")
+
+            # Stwórz mapowanie source_term -> target_term dla zatwierdzonych terminów
+            terminology_map = {}
+            for term in approved_terms:
+                source_term = term.get("source_term", "")
+                target_term = term.get("target_term", "")
+                if source_term and target_term:
+                    terminology_map[source_term] = target_term
 
             # Grupuj terminy według kontekstu dla efektywnego przetwarzania
             updated_segments = []
 
             for segment in segments:
-                # Sprawdź czy segment zawiera jakieś edytowane terminy
-                segment_text = segment.get("translated_text", "")
+                # FIXED: Sprawdź czy segment zawiera jakieś zatwierdzone terminy
+                # w ANGIELSKIM TEKŚCIE ŹRÓDŁOWYM (source_text), nie w polskim tłumaczeniu
+                source_text = segment.get("source_text", "")
+                source_text_lower = source_text.lower()
                 relevant_terms = []
 
-                for term in edited_terms:
-                    # Sprawdź czy oryginalny termin (przed edycją) występuje w tym segmencie
-                    original = term.get("original_proposal", "")
-                    if original and original.lower() in segment_text.lower():
+                for term in approved_terms:
+                    # Sprawdź czy angielski termin występuje w angielskim źródle
+                    source_term = term.get("source_term", "")
+                    if source_term and source_term.lower() in source_text_lower:
                         relevant_terms.append(term)
 
                 if relevant_terms:
-                    # Segment wymaga aktualizacji
-                    updated_text = await self._update_segment(
-                        segment_text,
+                    # Segment wymaga aktualizacji - przetłumacz ponownie z zatwierdzoną terminologią
+                    logger.info(f"Re-translating segment with {len(relevant_terms)} approved terms")
+                    updated_text = await self._retranslate_segment(
+                        source_text,
                         relevant_terms,
-                        segment.get("source_text", "")
+                        segment.get("translated_text", "")
                     )
 
                     updated_segment = segment.copy()
@@ -100,98 +111,73 @@ class ChangeImplementer:
             # W przypadku błędu zwróć oryginalne segmenty
             return segments
 
-    async def _update_segment(
+    async def _retranslate_segment(
         self,
-        translated_text: str,
+        source_text: str,
         terms: List[Dict[str, Any]],
-        source_text: str = "",
+        original_translation: str = "",
     ) -> str:
         """
-        Aktualizuje pojedynczy segment z uwzględnieniem edytowanych terminów.
+        Re-translates a segment with approved terminology.
+
+        This is more reliable than trying to replace terms in existing translation,
+        because it handles grammatical forms, context, and ensures terminology is used.
 
         Args:
-            translated_text: Oryginalne tłumaczenie
-            terms: Lista edytowanych terminów do wdrożenia
-            source_text: Tekst źródłowy (dla kontekstu)
+            source_text: English source text
+            terms: List of approved terms to use
+            original_translation: Original Polish translation (for reference)
 
         Returns:
-            Zaktualizowany tekst tłumaczenia
+            New Polish translation with approved terminology
         """
         try:
-            # Przygotuj listę zmian dla Claude
-            changes_list = []
+            # Build terminology table for prompt
+            terminology_lines = []
             for term in terms:
-                changes_list.append(
-                    f"- Replace '{term['original_proposal']}' with '{term['target_term']}'"
-                )
+                source_term = term.get("source_term", "")
+                target_term = term.get("target_term", "")
+                if source_term and target_term:
+                    terminology_lines.append(f"- {source_term} → {target_term}")
 
-            changes_text = "\n".join(changes_list)
+            terminology_text = "\n".join(terminology_lines)
 
-            # Prompt dla Claude do inteligentnej implementacji zmian
-            prompt = f"""You are a professional translator implementing terminology corrections.
+            # Prompt for Claude to translate with approved terminology
+            prompt = f"""You are a professional legal translator (English to Polish).
+
+Translate the following English text to Polish, using the APPROVED TERMINOLOGY provided below.
 
 SOURCE TEXT (EN):
 {source_text}
 
-CURRENT TRANSLATION (PL):
-{translated_text}
-
-TERMINOLOGY CORRECTIONS TO IMPLEMENT:
-{changes_text}
+APPROVED TERMINOLOGY (MUST USE):
+{terminology_text}
 
 INSTRUCTIONS:
-1. Replace the old terms with the new approved terms
-2. Ensure proper grammar and declension after changes
-3. Maintain the overall sentence structure and meaning
-4. Handle cases where the term appears in different grammatical forms
-5. Be careful to only change the specific terms, not similar words
+1. Use the approved Polish terms for the English terms listed above
+2. Apply proper Polish grammar and declension (cases, gender, etc.)
+3. Maintain professional legal language style
+4. Ensure the translation is natural and fluent
+5. The approved terminology MUST be used - do not substitute with synonyms
 
-Return ONLY the corrected Polish translation, without any explanations."""
+IMPORTANT: Return ONLY the Polish translation, without any explanations or notes."""
 
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2000,
-                temperature=0.3,  # Lower temperature for more consistent changes
+                temperature=0.3,  # Lower temperature for consistency
                 messages=[{"role": "user", "content": prompt}],
             )
 
             updated_text = response.content[0].text.strip()
 
-            logger.debug(f"Updated segment: {translated_text[:50]}... -> {updated_text[:50]}...")
+            logger.debug(f"Re-translated segment with {len(terms)} approved terms")
             return updated_text
 
         except Exception as e:
-            logger.error(f"Error updating segment: {e}", exc_info=True)
-            # W przypadku błędu, spróbuj prostej zamiany
-            return self._simple_replace(translated_text, terms)
-
-    def _simple_replace(
-        self,
-        text: str,
-        terms: List[Dict[str, Any]],
-    ) -> str:
-        """
-        Prosta zamiana terminów jako fallback.
-
-        Args:
-            text: Tekst do aktualizacji
-            terms: Terminy do zamiany
-
-        Returns:
-            Zaktualizowany tekst
-        """
-        updated_text = text
-
-        for term in terms:
-            old_term = term.get("original_proposal", "")
-            new_term = term.get("target_term", "")
-
-            if old_term and new_term:
-                # Case-insensitive replacement
-                pattern = re.compile(re.escape(old_term), re.IGNORECASE)
-                updated_text = pattern.sub(new_term, updated_text)
-
-        return updated_text
+            logger.error(f"Error re-translating segment: {e}", exc_info=True)
+            # Fallback to original translation
+            return original_translation
 
     def get_stats(self) -> Dict[str, Any]:
         """
