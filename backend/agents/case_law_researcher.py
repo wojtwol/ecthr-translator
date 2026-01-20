@@ -40,7 +40,12 @@ class CaseLawResearcher:
         logger.info("Case Law Researcher initialized with TM, HUDOC, CURIA, and IATE")
 
     async def enrich_terms(
-        self, terms: List[Dict[str, Any]], document_id: Optional[str] = None, ws_manager = None, current_progress: float = 0.5
+        self,
+        terms: List[Dict[str, Any]],
+        document_id: Optional[str] = None,
+        ws_manager = None,
+        current_progress: float = 0.5,
+        on_term_ready = None
     ) -> List[Dict[str, Any]]:
         """
         Wzbogaca terminy o wyniki z baz orzeczeń.
@@ -48,6 +53,8 @@ class CaseLawResearcher:
         Args:
             terms: Lista terminów do wzbogacenia
                    [{"source_term": "margin of appreciation", ...}, ...]
+            on_term_ready: Optional callback wywoływany dla każdego wzbogaconego terminu
+                          on_term_ready(enriched_term) - umożliwia progresywne wyświetlanie
 
         Returns:
             Lista wzbogaconych terminów z referencjami do orzeczeń
@@ -56,25 +63,40 @@ class CaseLawResearcher:
             logger.info("No terms to enrich")
             return []
 
-        logger.info(f"Enriching {len(terms)} terms with case law research")
+        logger.info(f"Enriching {len(terms)} terms with case law research (progressive: {on_term_ready is not None})")
 
         enriched_terms = []
         for idx, term in enumerate(terms):
             source_term = term.get("source_term", "")
             if not source_term:
                 enriched_terms.append(term)
+                # Call callback even for non-enriched terms
+                if on_term_ready:
+                    try:
+                        await on_term_ready(term)
+                    except Exception as e:
+                        logger.error(f"Error in term callback: {e}")
                 continue
 
             # Send progress update for each term
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
                     document_id, "searching_databases", current_progress,
-                    f"🌐 Przeszukuję HUDOC, CURIA i IATE dla terminu '{source_term}' ({idx + 1}/{len(terms)})..."
+                    f"🌐 Przeszukuję TM/HUDOC/CURIA/IATE dla '{source_term}' ({idx + 1}/{len(terms)})..."
                 )
 
             # Wzbogać termin o wyniki z baz orzeczeń
             enriched_term = await self._enrich_single_term(source_term, term, document_id=document_id, ws_manager=ws_manager, current_progress=current_progress)
             enriched_terms.append(enriched_term)
+
+            # CRITICAL: Call callback IMMEDIATELY after enriching each term
+            # This allows frontend to display terms progressively as they're enriched
+            if on_term_ready:
+                try:
+                    await on_term_ready(enriched_term)
+                    logger.debug(f"Sent enriched term '{source_term}' to frontend via callback")
+                except Exception as e:
+                    logger.error(f"Error in term callback for '{source_term}': {e}")
 
         logger.info(f"Enriched {len(enriched_terms)} terms")
         return enriched_terms

@@ -87,6 +87,7 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
         document_id: Optional[str] = None,
         ws_manager = None,
         current_progress: float = 0.5,
+        on_term_ready = None,
     ) -> List[Dict[str, Any]]:
         """
         Ekstrahuje terminy prawnicze z segmentów.
@@ -144,10 +145,17 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                     if ws_manager and document_id:
                         await ws_manager.broadcast_progress(
                             document_id, "case_law_research", current_progress,
-                            f"🔍 Wzbogacam {len(all_terms)} terminów o tłumaczenia z baz HUDOC, CURIA i IATE..."
+                            f"🔍 Wzbogacam {len(all_terms)} terminów o tłumaczenia z TM/HUDOC/CURIA/IATE..."
                         )
-                    logger.info(f"Enriching {len(all_terms)} terms with case law research")
-                    all_terms = await researcher.enrich_terms(all_terms, document_id=document_id, ws_manager=ws_manager, current_progress=current_progress)
+                    logger.info(f"Enriching {len(all_terms)} terms with case law research (progressive: {on_term_ready is not None})")
+                    # Pass on_term_ready callback to enable progressive term display
+                    all_terms = await researcher.enrich_terms(
+                        all_terms,
+                        document_id=document_id,
+                        ws_manager=ws_manager,
+                        current_progress=current_progress,
+                        on_term_ready=on_term_ready
+                    )
                     logger.info("Terms enriched with case law references")
             except Exception as e:
                 logger.error(f"Error enriching terms with case law: {e}")
