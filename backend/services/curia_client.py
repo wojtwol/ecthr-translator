@@ -123,6 +123,13 @@ class CURIAClient:
 
         query_coverage = len(common_keywords) / len(query_keywords)
         known_coverage = len(common_keywords) / len(known_keywords)
+
+        # CRITICAL FIX: Require BOTH sides to have at least 50% match
+        # "district court judge" (33% match) should NOT match "access to court" (50% match)
+        # Both must be >= 0.5 to avoid false positives
+        if query_coverage < 0.5 or known_coverage < 0.5:
+            return 0.0  # Reject - insufficient match on at least one side
+
         avg_coverage = (query_coverage + known_coverage) / 2
 
         if avg_coverage >= 0.9:
@@ -131,8 +138,6 @@ class CURIAClient:
             return 0.75
         elif avg_coverage >= 0.5:
             return 0.65
-        elif avg_coverage >= 0.3:
-            return 0.55
         else:
             return 0.0
 
