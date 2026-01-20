@@ -335,77 +335,6 @@ async def _run_translation(
 
             # Track total segments for progress calculation
             segment_offset = 0  # Track how many segments we've saved
-            terms_sent = set()  # Track which terms we've already sent to avoid duplicates
-
-            # Define per-term callback - saves and displays each term immediately after enrichment
-            async def on_term_enriched(term_data):
-                """
-                Called for each term immediately after enrichment with TM/HUDOC/CURIA/IATE.
-                Allows progressive display of terms in the frontend.
-                """
-                from db.database import SessionLocal
-                term_db = SessionLocal()
-
-                try:
-                    source_term = term_data.get("source_term", "")
-
-                    # Skip if we've already sent this term (deduplication)
-                    if source_term in terms_sent:
-                        return
-                    terms_sent.add(source_term)
-
-                    # Prepare references JSON with case law data
-                    references = {}
-                    if term_data.get("case_law_references"):
-                        references["case_law_references"] = term_data.get("case_law_references")
-                        references["reference_count"] = term_data.get("reference_count", 0)
-                    if term_data.get("hudoc_reference"):
-                        references["hudoc"] = term_data.get("hudoc_reference")
-                    if term_data.get("curia_reference"):
-                        references["curia"] = term_data.get("curia_reference")
-                    if term_data.get("context"):
-                        references["context"] = term_data.get("context")
-
-                    # Use official translation if available, otherwise proposed
-                    target_term = term_data.get("official_translation", term_data.get("proposed_translation", ""))
-                    source_type = term_data.get("translation_source", term_data.get("source_type", "proposed"))
-
-                    # Save term to database immediately
-                    db_term = models.Term(
-                        id=str(uuid.uuid4()),
-                        document_id=document_id,
-                        source_term=source_term,
-                        target_term=target_term,
-                        original_proposal=term_data.get("proposed_translation", ""),
-                        source_type=source_type,
-                        confidence=term_data.get("translation_confidence", term_data.get("confidence", 0.5)),
-                        references=references if references else None,
-                        status="pending",
-                    )
-                    term_db.add(db_term)
-                    term_db.commit()
-
-                    # Notify frontend immediately
-                    await ws_manager.send_message(
-                        {
-                            "type": "term_ready",
-                            "data": {
-                                "source_term": source_term,
-                                "target_term": target_term,
-                                "source_type": source_type,
-                                "confidence": term_data.get("translation_confidence", term_data.get("confidence", 0.5)),
-                            }
-                        },
-                        document_id
-                    )
-
-                    logger.debug(f"[Job {job_id}] Term '{source_term}' saved and sent to frontend")
-
-                except Exception as e:
-                    logger.error(f"Error in term enriched callback: {e}", exc_info=True)
-                    term_db.rollback()
-                finally:
-                    term_db.close()
 
             # Define batch callback - saves terms and segments progressively
             async def on_batch_ready(batch_terms, batch_segments, is_last, batch_num, total_batches):
@@ -425,9 +354,42 @@ async def _run_translation(
                         f"Processing batch {batch_num}/{total_batches}..."
                     )
 
-                    # Note: Terms are already saved by on_term_enriched callback
-                    # Here we only save segments
-                    logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} ready: {len(batch_terms)} terms (already saved), {len(batch_segments)} segments")
+                    # Save terms from this batch
+                    logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
+
+                    for term_data in batch_terms:
+                        # Prepare references JSON with case law data
+                        references = {}
+
+                        # Add case law references from HUDOC, CURIA, IATE
+                        if term_data.get("case_law_references"):
+                            references["case_law_references"] = term_data.get("case_law_references")
+                            references["reference_count"] = term_data.get("reference_count", 0)
+
+                        # Legacy support for old format
+                        if term_data.get("hudoc_reference"):
+                            references["hudoc"] = term_data.get("hudoc_reference")
+                        if term_data.get("curia_reference"):
+                            references["curia"] = term_data.get("curia_reference")
+                        if term_data.get("context"):
+                            references["context"] = term_data.get("context")
+
+                        # Use official translation if available, otherwise proposed
+                        target_term = term_data.get("official_translation", term_data.get("proposed_translation", ""))
+                        source_type = term_data.get("translation_source", term_data.get("source_type", "proposed"))
+
+                        db_term = models.Term(
+                            id=str(uuid.uuid4()),
+                            document_id=document_id,
+                            source_term=term_data.get("source_term", ""),
+                            target_term=target_term,
+                            original_proposal=term_data.get("proposed_translation", ""),
+                            source_type=source_type,
+                            confidence=term_data.get("translation_confidence", term_data.get("confidence", 0.5)),
+                            references=references if references else None,
+                            status="pending",
+                        )
+                        batch_db.add(db_term)
 
                     # Save segments from this batch
                     for idx, segment_data in enumerate(batch_segments):
@@ -446,12 +408,12 @@ async def _run_translation(
                     batch_db.commit()
                     segment_offset += len(batch_segments)
 
-                    # Notify frontend that batch of segments is complete
-                    # (Terms were already sent progressively via on_term_enriched)
+                    # Notify frontend about new terms available for validation
                     await ws_manager.send_message(
                         {
-                            "type": "batch_complete",
+                            "type": "batch_ready",
                             "data": {
+                                "terms_count": len(batch_terms),
                                 "segments_count": len(batch_segments),
                                 "is_last": is_last,
                                 "batch_num": batch_num,
@@ -478,12 +440,11 @@ async def _run_translation(
             job.progress = 0.3
             db.commit()
 
-            # Run orchestrator in BATCH mode with progressive term display
+            # Run orchestrator in BATCH mode
             result = await orch.process_in_batches(
                 document_id,
                 source_path,
                 on_batch_ready=on_batch_ready,
-                on_term_enriched=on_term_enriched,  # Progressive term display
                 batch_size=10,  # Process 10 segments at a time
                 ws_manager=ws_manager
             )

@@ -163,7 +163,6 @@ class Orchestrator:
         document_id: str,
         source_path: str,
         on_batch_ready=None,
-        on_term_enriched=None,
         batch_size: int = 10,
         ws_manager=None,
     ):
@@ -171,18 +170,15 @@ class Orchestrator:
         Przetwarza dokument w batchach - progresywna ekstrakcja terminów.
 
         Workflow:
-        1. Ekstraktuje terminy z BATCH_SIZE segmentów
-        2. Dla każdego terminu: wzbogaca o TM/HUDOC/CURIA/IATE i wywołuje on_term_enriched()
-        3. Użytkownik widzi terminy jeden po drugim w czasie rzeczywistym
-        4. Po przetworzeniu batcha wywołuje on_batch_ready() z segmentami
+        1. Ekstraktuje i przetwarza BATCH_SIZE segmentów
+        2. Wywołuje callback on_batch_ready() z terminami do walidacji
+        3. Użytkownik może walidować terminy z batcha 1 podczas gdy system przetwarza batch 2
 
         Args:
             document_id: ID dokumentu
             source_path: Ścieżka do pliku źródłowego
             on_batch_ready: Callback wywoływany dla każdego batcha: on_batch_ready(terms, segments, is_last, batch_idx, total_batches)
-            on_term_enriched: Callback wywoływany dla każdego wzbogaconego terminu: on_term_enriched(term)
             batch_size: Liczba segmentów w batchu
-            ws_manager: WebSocket manager dla progress updates
 
         Returns:
             TranslationResult z wszystkimi segmentami
@@ -273,16 +269,7 @@ class Orchestrator:
                     )
 
                 # Faza 3: Ekstrakcja terminów dla tego batcha
-                # Note: on_term_enriched callback will be called by term_extractor during enrichment
-                # This allows terms to be displayed progressively as they're enriched
-                batch_terms = await self.term_extractor.extract(
-                    batch_segments,
-                    known_terms,
-                    document_id=document_id,
-                    ws_manager=ws_manager,
-                    current_progress=batch_progress,
-                    on_term_ready=on_term_enriched  # Pass callback for progressive term display
-                )
+                batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress)
                 all_extracted_terms.extend(batch_terms)
 
                 logger.info(f"Batch {batch_idx + 1}: Extracted {len(batch_terms)} terms")
