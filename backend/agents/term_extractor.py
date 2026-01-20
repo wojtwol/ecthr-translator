@@ -17,6 +17,9 @@ class TermExtractor:
 
     TERM_EXTRACTOR_PROMPT = """Jesteś ekspertem w terminologii prawniczej ETPCz.
 
+CRITICAL: Extract and suggest translations ONLY for terms that are actually present in the segment.
+DO NOT invent, add, or infer any terms or context that are not in the source text.
+
 Przeanalizuj poniższy segment orzeczenia ETPCz i zidentyfikuj wszystkie terminy prawnicze,
 które wymagają spójnego tłumaczenia:
 
@@ -36,13 +39,19 @@ Skup się na:
 - Nazwach artykułów Konwencji i Protokołów
 - Łacińskich maksymach prawniczych
 
+CRITICAL RULES:
+1. Extract ONLY terms that appear in the segment above
+2. Use the exact phrase from the segment as "context" - do not paraphrase or invent
+3. DO NOT add terms that are not in the segment
+4. DO NOT complete or infer missing information
+
 Odpowiedz w formacie JSON:
 {{
     "terms": [
         {{
             "source_term": "margin of appreciation",
             "proposed_translation": "margines oceny",
-            "context": "zdanie, w którym termin występuje",
+            "context": "exact sentence from segment where term appears",
             "term_type": "ecthr_specific" | "procedural" | "convention" | "latin",
             "confidence": 0.0-1.0
         }}

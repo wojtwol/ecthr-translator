@@ -13,10 +13,13 @@ class Translator:
 
     TRANSLATOR_PROMPT = """Jesteś profesjonalnym tłumaczem prawniczym specjalizującym się w orzeczeniach ETPCz.
 
+CRITICAL: Translate ONLY what is in the source text. DO NOT add, invent, or infer any information.
+
 Przetłumacz poniższy segment na język polski, zachowując:
 - Styl i rejestr orzeczeń sądowych
 - Spójność terminologiczną (użyj TYLKO podanych ekwiwalentów)
 - Strukturę zdań typową dla polskiego języka prawniczego
+- ABSOLUTNĄ WIERNOŚĆ ŹRÓDŁU - tłumacz tylko to co jest napisane
 
 Segment do tłumaczenia:
 {source_text}
@@ -28,6 +31,14 @@ OBOWIĄZKOWA TERMINOLOGIA (użyj dokładnie tych ekwiwalentów):
 
 Kontekst (poprzednie przetłumaczone segmenty):
 {context}
+
+CRITICAL RULES:
+1. Translate ONLY the source text provided above - nothing more, nothing less
+2. DO NOT add dates, facts, or events that are not in the source
+3. DO NOT infer or complete incomplete information
+4. DO NOT add explanations, interpretations, or context
+5. If the source is incomplete or unclear, translate it as-is
+6. Paragraph numbers like [35], [36] are part of the source - keep them exactly
 
 Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć tylko tłumaczenie."""
 

@@ -145,6 +145,8 @@ class ChangeImplementer:
             # Prompt for Claude to translate with approved terminology
             prompt = f"""You are a professional legal translator (English to Polish).
 
+CRITICAL: Translate ONLY what is in the source text. DO NOT add, invent, or infer any information.
+
 Translate the following English text to Polish, using the APPROVED TERMINOLOGY provided below.
 
 SOURCE TEXT (EN):
@@ -159,6 +161,14 @@ INSTRUCTIONS:
 3. Maintain professional legal language style
 4. Ensure the translation is natural and fluent
 5. The approved terminology MUST be used - do not substitute with synonyms
+
+CRITICAL RULES:
+1. Translate ONLY the source text provided above - nothing more, nothing less
+2. DO NOT add dates, facts, or events that are not in the source
+3. DO NOT infer or complete incomplete information
+4. DO NOT add explanations, interpretations, or context
+5. If the source is incomplete or unclear, translate it as-is
+6. Paragraph numbers like [35], [36] are part of the source - keep them exactly
 
 IMPORTANT: Return ONLY the Polish translation, without any explanations or notes."""
 
