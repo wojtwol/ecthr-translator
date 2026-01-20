@@ -63,6 +63,9 @@ class IATEClient:
         Search for a term in IATE database using PUBLIC API.
         Returns list of dictionaries for compatibility with HUDOC/CURIA clients.
 
+        IMPORTANT: IATE is designed for single terms and short phrases (max 5 words).
+        Long phrases/sentences should be searched in HUDOC/CURIA instead.
+
         Args:
             term: The term to search for
             source_lang: Source language code (default: "en")
@@ -72,6 +75,12 @@ class IATEClient:
         Returns:
             List of dictionaries with search results
         """
+        # Skip IATE search for long phrases (more than 5 words)
+        word_count = len(term.split())
+        if word_count > 5:
+            logger.info(f"IATE: Skipping search for long phrase '{term}' ({word_count} words). IATE works best with 1-5 word terms.")
+            return []
+
         if self.use_mock:
             logger.info(f"IATE: Using mock data for term '{term}'")
             translation, conf, ids, domain = self._search_mock(term)

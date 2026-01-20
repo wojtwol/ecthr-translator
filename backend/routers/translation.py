@@ -358,8 +358,15 @@ async def _run_translation(
                     logger.info(f"[Job {job_id}] Batch {batch_num}/{total_batches} ready: {len(batch_terms)} terms, {len(batch_segments)} segments")
 
                     for term_data in batch_terms:
-                        # Prepare references JSON with additional metadata
+                        # Prepare references JSON with case law data
                         references = {}
+
+                        # Add case law references from HUDOC, CURIA, IATE
+                        if term_data.get("case_law_references"):
+                            references["case_law_references"] = term_data.get("case_law_references")
+                            references["reference_count"] = term_data.get("reference_count", 0)
+
+                        # Legacy support for old format
                         if term_data.get("hudoc_reference"):
                             references["hudoc"] = term_data.get("hudoc_reference")
                         if term_data.get("curia_reference"):
@@ -367,14 +374,18 @@ async def _run_translation(
                         if term_data.get("context"):
                             references["context"] = term_data.get("context")
 
+                        # Use official translation if available, otherwise proposed
+                        target_term = term_data.get("official_translation", term_data.get("proposed_translation", ""))
+                        source_type = term_data.get("translation_source", term_data.get("source_type", "proposed"))
+
                         db_term = models.Term(
                             id=str(uuid.uuid4()),
                             document_id=document_id,
                             source_term=term_data.get("source_term", ""),
-                            target_term=term_data.get("proposed_translation", ""),
+                            target_term=target_term,
                             original_proposal=term_data.get("proposed_translation", ""),
-                            source_type=term_data.get("source_type", "proposed"),
-                            confidence=term_data.get("confidence_score", 0.5),
+                            source_type=source_type,
+                            confidence=term_data.get("translation_confidence", term_data.get("confidence", 0.5)),
                             references=references if references else None,
                             status="pending",
                         )
