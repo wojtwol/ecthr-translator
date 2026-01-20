@@ -118,16 +118,16 @@ class CaseLawResearcher:
 
             tm_entry = self.tm_manager.find_exact(source_term)
             if tm_entry:
-                logger.info(f"Found exact TM match for '{source_term}': {tm_entry.target}")
+                logger.info(f"Found exact TM match for '{source_term}': {tm_entry.target} - STOPPING search")
                 if ws_manager and document_id:
                     await ws_manager.broadcast_progress(
                         document_id, "tm_found", current_progress,
-                        f"   ✓ TM: znaleziono zatwierdzone tłumaczenie!"
+                        f"   ✓ TM: znaleziono zatwierdzone tłumaczenie! (pomijam bazy danych)"
                     )
 
                 # Dodaj opcję TM do listy
                 all_translation_options.append({
-                    "source_type": "tm_exact",  # FIX: było "tm", teraz "tm_exact"
+                    "source_type": "tm_exact",
                     "term_pl": tm_entry.target,
                     "confidence": 1.0,
                     "metadata": tm_entry.metadata,
@@ -135,68 +135,62 @@ class CaseLawResearcher:
 
                 # Dodaj referencję TM
                 all_references.append({
-                    "source": "tm_exact",  # FIX: było "tm"
+                    "source": "tm_exact",
                     "term_en": source_term,
                     "term_pl": tm_entry.target,
                     "confidence": 1.0,
-                    "context": original_term.get("context", ""),  # FIX: Dodaj context
+                    "context": original_term.get("context", ""),
                     "metadata": tm_entry.metadata,
                 })
-            else:
-                if ws_manager and document_id:
-                    await ws_manager.broadcast_progress(
-                        document_id, "tm_not_found", current_progress,
-                        f"   ⊘ TM: brak w pamięci, przeszukuję bazy danych..."
-                    )
 
-            # STEP 2: Search databases (HUDOC, CURIA, IATE) - zawsze, nawet jeśli TM znaleziono
+                # TM znaleziono - dodaj AI proposal i KONIEC (nie szukaj w bazach danych)
+                if original_term.get("proposed_translation"):
+                    all_translation_options.append({
+                        "source_type": "proposed",
+                        "term_pl": original_term.get("proposed_translation"),
+                        "confidence": original_term.get("confidence", 0.6),
+                        "term_type": original_term.get("term_type", "other"),
+                    })
+
+                # Zwróć wzbogacony termin z TM + AI
+                enriched["translation_options"] = all_translation_options
+                enriched["case_law_references"] = all_references
+                enriched["reference_count"] = len(all_references)
+                enriched["options_count"] = len(all_translation_options)
+                logger.info(f"TM match found - skipping database search for '{source_term}'")
+                return enriched
+
+            # TM nie znalazło - przeszukaj bazy danych SEKWENCYJNIE
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "searching_databases", current_progress,
-                    f"   📚 Przeszukuję HUDOC, CURIA i IATE dla '{source_term}'..."
+                    document_id, "tm_not_found", current_progress,
+                    f"   ⊘ TM: brak w pamięci, przeszukuję bazy danych..."
                 )
 
-            # Przeszukaj wszystkie trzy źródła równolegle
-            hudoc_results, curia_results, iate_results = await asyncio.gather(
-                self.hudoc_client.search_term(source_term, max_results=3),
-                self.curia_client.search_term(source_term, max_results=3),
-                self.iate_client.search_term(source_term, max_results=3),
-                return_exceptions=True,
-            )
+            # STEP 2: Search HUDOC first
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_hudoc", current_progress,
+                    f"   📚 Przeszukuję HUDOC dla '{source_term}'..."
+                )
 
-            # Obsłuż błędy
-            if isinstance(hudoc_results, Exception):
-                logger.error(f"HUDOC search error: {hudoc_results}")
+            try:
+                hudoc_results = await self.hudoc_client.search_term(source_term, max_results=3)
+            except Exception as e:
+                logger.error(f"HUDOC search error: {e}")
                 hudoc_results = []
-            elif ws_manager and document_id:
+
+            if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
                     document_id, "hudoc_done", current_progress,
                     f"   ✓ HUDOC: znaleziono {len(hudoc_results)} wyników"
-                )
-
-            if isinstance(curia_results, Exception):
-                logger.error(f"CURIA search error: {curia_results}")
-                curia_results = []
-            elif ws_manager and document_id:
-                await ws_manager.broadcast_progress(
-                    document_id, "curia_done", current_progress,
-                    f"   ✓ CURIA: znaleziono {len(curia_results)} wyników"
-                )
-
-            if isinstance(iate_results, Exception):
-                logger.error(f"IATE search error: {iate_results}")
-                iate_results = []
-            elif ws_manager and document_id:
-                await ws_manager.broadcast_progress(
-                    document_id, "iate_done", current_progress,
-                    f"   ✓ IATE: znaleziono {len(iate_results)} wyników"
                 )
 
             # STEP 3: Dodaj wyniki HUDOC do opcji i referencji
             for result in hudoc_results:
                 # Dodaj do opcji tłumaczeń
                 all_translation_options.append({
-                    "source_type": "hudoc",  # FIX: ustawiamy source_type
+                    "source_type": "hudoc",
                     "term_pl": result.get("term_pl"),
                     "confidence": result.get("confidence", 0.0),
                     "cases": result.get("cases", []),
@@ -211,15 +205,59 @@ class CaseLawResearcher:
                     "confidence": result.get("confidence", 0.0),
                     "cases": result.get("cases", []),
                     "url": result.get("url"),
-                    "context": original_term.get("context", ""),  # FIX: Dodaj context
-                    # FIX: Usunięto "priority" - to pole wewnętrzne, nie powinno być w BD
+                    "context": original_term.get("context", ""),
                 })
+
+            # Jeśli HUDOC znalazło wyniki - STOP (nie szukaj CURIA ani IATE)
+            if hudoc_results:
+                logger.info(f"HUDOC found {len(hudoc_results)} results for '{source_term}' - STOPPING search")
+                if ws_manager and document_id:
+                    await ws_manager.broadcast_progress(
+                        document_id, "hudoc_found", current_progress,
+                        f"   ✓ HUDOC: znaleziono wyniki! (pomijam CURIA i IATE)"
+                    )
+
+                # Dodaj AI proposal i KONIEC
+                if original_term.get("proposed_translation"):
+                    all_translation_options.append({
+                        "source_type": "proposed",
+                        "term_pl": original_term.get("proposed_translation"),
+                        "confidence": original_term.get("confidence", 0.6),
+                        "term_type": original_term.get("term_type", "other"),
+                    })
+
+                # Zwróć wzbogacony termin z HUDOC + AI
+                enriched["translation_options"] = all_translation_options
+                enriched["case_law_references"] = all_references
+                enriched["reference_count"] = len(all_references)
+                enriched["options_count"] = len(all_translation_options)
+                logger.info(f"HUDOC match found - skipping CURIA/IATE search for '{source_term}'")
+                return enriched
+
+            # HUDOC nie znalazło - szukaj CURIA
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_curia", current_progress,
+                    f"   📚 Przeszukuję CURIA dla '{source_term}'..."
+                )
+
+            try:
+                curia_results = await self.curia_client.search_term(source_term, max_results=3)
+            except Exception as e:
+                logger.error(f"CURIA search error: {e}")
+                curia_results = []
+
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "curia_done", current_progress,
+                    f"   ✓ CURIA: znaleziono {len(curia_results)} wyników"
+                )
 
             # STEP 4: Dodaj wyniki CURIA do opcji i referencji
             for result in curia_results:
                 # Dodaj do opcji tłumaczeń
                 all_translation_options.append({
-                    "source_type": "curia",  # FIX: ustawiamy source_type
+                    "source_type": "curia",
                     "term_pl": result.get("term_pl"),
                     "confidence": result.get("confidence", 0.0),
                     "url": result.get("url"),
@@ -232,8 +270,53 @@ class CaseLawResearcher:
                     "term_pl": result.get("term_pl"),
                     "confidence": result.get("confidence", 0.0),
                     "url": result.get("url"),
-                    "context": original_term.get("context", ""),  # FIX: Dodaj context
+                    "context": original_term.get("context", ""),
                 })
+
+            # Jeśli CURIA znalazło wyniki - STOP (nie szukaj IATE)
+            if curia_results:
+                logger.info(f"CURIA found {len(curia_results)} results for '{source_term}' - STOPPING search")
+                if ws_manager and document_id:
+                    await ws_manager.broadcast_progress(
+                        document_id, "curia_found", current_progress,
+                        f"   ✓ CURIA: znaleziono wyniki! (pomijam IATE)"
+                    )
+
+                # Dodaj AI proposal i KONIEC
+                if original_term.get("proposed_translation"):
+                    all_translation_options.append({
+                        "source_type": "proposed",
+                        "term_pl": original_term.get("proposed_translation"),
+                        "confidence": original_term.get("confidence", 0.6),
+                        "term_type": original_term.get("term_type", "other"),
+                    })
+
+                # Zwróć wzbogacony termin z CURIA + AI
+                enriched["translation_options"] = all_translation_options
+                enriched["case_law_references"] = all_references
+                enriched["reference_count"] = len(all_references)
+                enriched["options_count"] = len(all_translation_options)
+                logger.info(f"CURIA match found - skipping IATE search for '{source_term}'")
+                return enriched
+
+            # CURIA nie znalazło - szukaj IATE (ostatnie źródło)
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_iate", current_progress,
+                    f"   📚 Przeszukuję IATE dla '{source_term}'..."
+                )
+
+            try:
+                iate_results = await self.iate_client.search_term(source_term, max_results=3)
+            except Exception as e:
+                logger.error(f"IATE search error: {e}")
+                iate_results = []
+
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "iate_done", current_progress,
+                    f"   ✓ IATE: znaleziono {len(iate_results)} wyników"
+                )
 
             # STEP 5: Dodaj wyniki IATE do opcji i referencji
             for result in iate_results:
