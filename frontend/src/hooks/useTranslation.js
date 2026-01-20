@@ -12,6 +12,7 @@ export const useTranslation = (documentId) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [translatedSegments, setTranslatedSegments] = useState([]); // Live segments during translation
+  const [extractionComplete, setExtractionComplete] = useState(false); // Track if ALL batches are done
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -73,6 +74,7 @@ export const useTranslation = (documentId) => {
     try {
       setTranslationStatus('translating');
       setError(null);
+      setExtractionComplete(false); // Reset extraction flag
 
       const response = await fetch(`https://ecthr-translator.onrender.com/api/translation/${documentId}/start`, {
         method: 'POST',
@@ -232,15 +234,26 @@ export const useTranslation = (documentId) => {
 
             case 'batch_ready':
               // New batch of terms is ready for validation
-              console.log(`Batch ready: ${message.data.terms_count} terms, ${message.data.segments_count} segments`);
+              console.log(`Batch ready: ${message.data.terms_count} terms, ${message.data.segments_count} segments, is_last: ${message.data.is_last}`);
               setTranslationStatus('validating'); // Allow user to start validating
               fetchTerms(); // Refresh terms list to show new batch
               fetchSegments(); // Fetch segments to show live preview
+
               if (!message.data.is_last) {
+                // More batches coming - show "in progress" message
+                setExtractionComplete(false);
                 setProgress({
                   stage: 'batch_extraction',
                   progress: 0.5,
-                  message: `New batch ready! ${message.data.terms_count} terms available. Extraction continues in background...`,
+                  message: `Ekstrakcja w toku - batch ${message.data.batch_num}/${message.data.total_batches}. Możesz już zacząć zatwierdzać terminy...`,
+                });
+              } else {
+                // Last batch - extraction is complete
+                setExtractionComplete(true);
+                setProgress({
+                  stage: 'extraction_complete',
+                  progress: 1.0,
+                  message: `Ekstrakcja zakończona - znaleziono ${message.data.terms_count} terminów`,
                 });
               }
               break;
@@ -338,6 +351,7 @@ export const useTranslation = (documentId) => {
     error,
     loading,
     translatedSegments,
+    extractionComplete,
     startTranslation,
     finalizeTranslation,
     updateTerm,

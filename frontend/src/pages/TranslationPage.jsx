@@ -19,6 +19,7 @@ const TranslationPage = () => {
     error,
     loading,
     translatedSegments,
+    extractionComplete,
     startTranslation,
     finalizeTranslation,
     updateTerm,
@@ -669,8 +670,36 @@ const TranslationPage = () => {
               </div>
             )}
 
+            {/* Extraction In Progress Banner - Show while batches are being processed */}
+            {translationStatus === 'validating' && !extractionComplete && stats && stats.total > 0 && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 text-blue-600 text-2xl">
+                    ⏳
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-blue-900">
+                      Ekstrakcja w toku...
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      📚 Dotychczas znaleziono <strong>{stats.total}</strong> terminów
+                      {stats.from_hudoc > 0 && ` (⚖️ ${stats.from_hudoc} z HUDOC`}
+                      {stats.from_curia > 0 && `, 🏛️ ${stats.from_curia} z CURIA`}
+                      {stats.from_tm_exact > 0 && `, ✓ ${stats.from_tm_exact} z TM 100%`}
+                      {stats.from_tm_fuzzy > 0 && `, ≈ ${stats.from_tm_fuzzy} z TM 95%+`}
+                      {stats.from_proposed > 0 && `, 🤖 ${stats.from_proposed} AI`}
+                      {(stats.from_hudoc > 0 || stats.from_curia > 0 || stats.from_tm_exact > 0 || stats.from_tm_fuzzy > 0 || stats.from_proposed > 0) && ')'}
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      💡 Możesz już zacząć zatwierdzać terminy - ekstrakcja kontynuowana w tle
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Extraction Complete Banner - Show summary of extracted terms */}
-            {translationStatus === 'validating' && progress.stage !== 'batch_extraction' && stats && stats.total > 0 && (
+            {translationStatus === 'validating' && extractionComplete && stats && stats.total > 0 && (
               <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-r-lg shadow-sm">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 text-green-600 text-2xl">
