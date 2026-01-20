@@ -289,17 +289,27 @@ class HUDOCClient:
         query_word_count = len(self._extract_keywords(term))
 
         for known_term, data in known_hudoc_terms.items():
-            score = self._calculate_match_score(term, known_term)
             known_word_count = len(self._extract_keywords(known_term))
 
-            # CRITICAL FIX: Penalize single-word matches for multi-word queries
-            # If query has 3+ words but matched term has only 1 word, heavily penalize
-            if query_word_count >= 3 and known_word_count == 1:
-                score *= 0.3  # Reduce score by 70%
+            # CRITICAL: STRICT word count filtering - legal principle
+            # Don't extract single words from multi-word concepts and vice versa
+            word_count_diff = abs(query_word_count - known_word_count)
 
-            # If query has 2+ words but matched term has only 1 word, moderately penalize
-            elif query_word_count >= 2 and known_word_count == 1:
-                score *= 0.5  # Reduce score by 50%
+            # REJECT matches with large word count difference
+            # "right" (1 word) should NEVER match "fundamental rights" (2 words)
+            # "access to court" (3 words) should NEVER match "court" (1 word)
+            if query_word_count == 1 and known_word_count > 2:
+                continue  # Single word query can't match 3+ word terms
+            if query_word_count >= 3 and known_word_count == 1:
+                continue  # Multi-word query (3+) can't match single word
+            if word_count_diff > 2:
+                continue  # Max difference is 2 words for any match
+
+            score = self._calculate_match_score(term, known_term)
+
+            # Additional penalty for remaining word count mismatches
+            if query_word_count >= 2 and known_word_count == 1:
+                score *= 0.5  # Reduce score by 50% for 2-word query vs 1-word term
 
             if score > 0.5:  # Only include if score > 50%
                 matches.append({

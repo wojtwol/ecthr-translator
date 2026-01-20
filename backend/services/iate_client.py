@@ -114,15 +114,26 @@ class IATEClient:
         return results[:max_results]
 
     def _search_mock(self, term: str) -> Tuple[Optional[str], float, List[str], Optional[str]]:
-        """Search using mock data."""
+        """Search using mock data with STRICT word count matching."""
         term_lower = term.lower()
+        query_word_count = len(term_lower.split())
 
         # Exact match
         if term_lower in self._mock_terms:
             return self._mock_terms[term_lower]
 
-        # Partial match
+        # Partial match with STRICT word count filtering
+        # Legal principle: Don't extract single words from multi-word concepts
+        # and don't match multi-word when searching single-word
         for key, value in self._mock_terms.items():
+            known_word_count = len(key.split())
+
+            # CRITICAL: Word count must match exactly (difference = 0)
+            # "right" (1 word) should NOT match "fundamental rights" (2 words)
+            word_count_diff = abs(query_word_count - known_word_count)
+            if word_count_diff > 0:
+                continue  # Skip if word counts don't match
+
             if term_lower in key or key in term_lower:
                 translation, conf, ids, domain = value
                 return (translation, conf * 0.85, ids, domain)  # Lower confidence for partial match
@@ -198,6 +209,9 @@ class IATEClient:
         """
         Parse IATE API response to extract translation and metadata.
 
+        STRICT FILTERING: Only returns results where word count matches exactly.
+        Legal principle: Don't extract single words from multi-word concepts.
+
         Args:
             data: JSON response from IATE API
             term: Original search term
@@ -212,45 +226,66 @@ class IATEClient:
             if not items:
                 return (None, 0.0, [], None)
 
-            # Get first result (best match)
-            first_entry = items[0]
+            query_word_count = len(term.split())
 
-            # Extract IATE ID
-            iate_id = first_entry.get("id", "")
-            iate_ids = [f"IATE:{iate_id}"] if iate_id else []
+            # Check all results to find one with matching word count
+            for entry in items:
+                # Extract source term from entry
+                languages = entry.get("language", {})
+                en_data = languages.get("en", {})
+                en_terms = en_data.get("term", [])
 
-            # Extract domain
-            domains = first_entry.get("domains", [])
-            domain = domains[0].get("name", {}).get("en") if domains else None
+                if not en_terms:
+                    continue
 
-            # Extract translation from target language
-            languages = first_entry.get("language", {})
-            target_data = languages.get(target_lang, {})
+                source_term = en_terms[0].get("value", "")
+                source_word_count = len(source_term.split())
 
-            if not target_data:
-                logger.warning(f"IATE: No translation found for target language '{target_lang}'")
-                return (None, 0.0, iate_ids, domain)
+                # CRITICAL: Word count must match exactly
+                # "right" (1 word) should NOT match "fundamental rights" (2 words)
+                word_count_diff = abs(query_word_count - source_word_count)
+                if word_count_diff > 0:
+                    logger.debug(f"IATE: Skipping '{source_term}' - word count mismatch (query: {query_word_count}, result: {source_word_count})")
+                    continue
 
-            # Get terms from target language
-            terms = target_data.get("term", [])
+                # Extract IATE ID
+                iate_id = entry.get("id", "")
+                iate_ids = [f"IATE:{iate_id}"] if iate_id else []
 
-            if not terms:
-                return (None, 0.0, iate_ids, domain)
+                # Extract domain
+                domains = entry.get("domains", [])
+                domain = domains[0].get("name", {}).get("en") if domains else None
 
-            # Get the first (preferred) term
-            translation = terms[0].get("value", "")
+                # Extract translation from target language
+                target_data = languages.get(target_lang, {})
 
-            if not translation:
-                return (None, 0.0, iate_ids, domain)
+                if not target_data:
+                    continue
 
-            # Calculate confidence based on reliability and match quality
-            # IATE terms are highly reliable (0.90-0.98)
-            reliability = first_entry.get("reliability", 3)  # 3 = reliable
-            confidence = min(0.90 + (reliability * 0.02), 0.98)
+                # Get terms from target language
+                target_terms = target_data.get("term", [])
 
-            logger.info(f"IATE: Found translation '{translation}' with confidence {confidence}")
+                if not target_terms:
+                    continue
 
-            return (translation, confidence, iate_ids, domain)
+                # Get the first (preferred) term
+                translation = target_terms[0].get("value", "")
+
+                if not translation:
+                    continue
+
+                # Calculate confidence based on reliability and match quality
+                # IATE terms are highly reliable (0.90-0.98)
+                reliability = entry.get("reliability", 3)  # 3 = reliable
+                confidence = min(0.90 + (reliability * 0.02), 0.98)
+
+                logger.info(f"IATE: Found translation '{translation}' for '{source_term}' with confidence {confidence}")
+
+                return (translation, confidence, iate_ids, domain)
+
+            # No results with matching word count
+            logger.info(f"IATE: No results found with matching word count for '{term}' ({query_word_count} words)")
+            return (None, 0.0, [], None)
 
         except Exception as e:
             logger.error(f"IATE: Error parsing response: {e}")
