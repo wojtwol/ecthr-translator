@@ -231,10 +231,22 @@ class CURIAClient:
 
         # Calculate match scores for all known terms
         matches = []
+        query_word_count = len(self._extract_keywords(term))
+
         for known_term, data in known_curia_terms.items():
             score = self._calculate_match_score(term, known_term)
+            known_word_count = len(self._extract_keywords(known_term))
 
-            if score > 0.5:
+            # CRITICAL FIX: Penalize single-word matches for multi-word queries
+            # If query has 3+ words but matched term has only 1 word, heavily penalize
+            if query_word_count >= 3 and known_word_count == 1:
+                score *= 0.3  # Reduce score by 70%
+
+            # If query has 2+ words but matched term has only 1 word, moderately penalize
+            elif query_word_count >= 2 and known_word_count == 1:
+                score *= 0.5  # Reduce score by 50%
+
+            if score > 0.5:  # Only include if score > 50%
                 matches.append({
                     "known_term": known_term,
                     "data": data,

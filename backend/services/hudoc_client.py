@@ -165,6 +165,31 @@ class HUDOCClient:
         """
         # Przykładowe known terms z HUDOC
         known_hudoc_terms = {
+            # Multi-word legal phrases (PRIORITY - check these first)
+            "right of access to court": {
+                "en": "right of access to court",
+                "pl": "prawo dostępu do sądu",
+                "cases": ["Golder v. United Kingdom"],
+                "confidence": 1.0,
+            },
+            "access to court": {
+                "en": "access to court",
+                "pl": "dostęp do sądu",
+                "cases": ["Golder v. United Kingdom"],
+                "confidence": 1.0,
+            },
+            "right to a fair trial": {
+                "en": "right to a fair trial",
+                "pl": "prawo do rzetelnego procesu",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
+            "fair trial": {
+                "en": "fair trial",
+                "pl": "rzetelny proces",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
             "margin of appreciation": {
                 "en": "margin of appreciation",
                 "pl": "margines oceny",
@@ -177,15 +202,23 @@ class HUDOCClient:
                 "cases": ["Tyrer v. United Kingdom", "Soering v. United Kingdom"],
                 "confidence": 1.0,
             },
-            "applicant": {
-                "en": "applicant",
-                "pl": "skarżący",
-                "cases": ["Various cases"],
-                "confidence": 1.0,
-            },
             "respondent government": {
                 "en": "respondent Government",
                 "pl": "pozwany Rząd",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
+            "does not bind": {
+                "en": "does not bind",
+                "pl": "nie wiąże",
+                "cases": ["Various cases"],
+                "confidence": 0.95,
+            },
+
+            # Single word terms (lower priority)
+            "applicant": {
+                "en": "applicant",
+                "pl": "skarżący",
                 "cases": ["Various cases"],
                 "confidence": 1.0,
             },
@@ -235,7 +268,7 @@ class HUDOCClient:
                 "en": "Court",
                 "pl": "Trybunał",
                 "cases": ["Various cases"],
-                "confidence": 0.90,
+                "confidence": 0.80,  # Lower confidence - often part of longer phrases
             },
             "judgment": {
                 "en": "judgment",
@@ -253,8 +286,20 @@ class HUDOCClient:
 
         # Calculate match scores for all known terms
         matches = []
+        query_word_count = len(self._extract_keywords(term))
+
         for known_term, data in known_hudoc_terms.items():
             score = self._calculate_match_score(term, known_term)
+            known_word_count = len(self._extract_keywords(known_term))
+
+            # CRITICAL FIX: Penalize single-word matches for multi-word queries
+            # If query has 3+ words but matched term has only 1 word, heavily penalize
+            if query_word_count >= 3 and known_word_count == 1:
+                score *= 0.3  # Reduce score by 70%
+
+            # If query has 2+ words but matched term has only 1 word, moderately penalize
+            elif query_word_count >= 2 and known_word_count == 1:
+                score *= 0.5  # Reduce score by 50%
 
             if score > 0.5:  # Only include if score > 50%
                 matches.append({
