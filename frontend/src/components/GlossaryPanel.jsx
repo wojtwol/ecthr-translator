@@ -30,6 +30,12 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       }
 
       const data = await response.json();
+      console.log('[GlossaryPanel] API Response:', {
+        url: `${filter}&page=${currentPage}&per_page=200`,
+        stats: data.stats,
+        termsCount: data.terms?.length,
+        firstTerm: data.terms?.[0]
+      });
       setTerms(data.terms);
       setStats(data.stats);
     } catch (error) {

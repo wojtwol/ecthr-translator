@@ -31,7 +31,7 @@ async def get_glossary(
     document_id: str,
     status: str = Query("all", description="Filter by status: all, pending, approved, edited, rejected"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=100),
+    per_page: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     """
@@ -68,12 +68,15 @@ async def get_glossary(
         from_proposed=len([t for t in all_terms if t.source_type == "proposed"]),
     )
 
+    # FIXED: Create a NEW query for paginated results (don't reuse executed query)
+    paginated_query = db.query(models.Term).filter(models.Term.document_id == document_id)
+
     # Filter by status if requested
     if status != "all":
-        query = query.filter(models.Term.status == status)
+        paginated_query = paginated_query.filter(models.Term.status == status)
 
     # Pagination
-    doc_terms = query.offset((page - 1) * per_page).limit(per_page).all()
+    doc_terms = paginated_query.offset((page - 1) * per_page).limit(per_page).all()
 
     # Convert DB models to Pydantic models
     terms_list = []
