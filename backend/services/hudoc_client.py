@@ -286,13 +286,18 @@ class HUDOCClient:
 
         # Calculate match scores for all known terms
         matches = []
-        query_word_count = len(self._extract_keywords(term))
+        # Count ACTUAL words, not keywords (keywords filter removes stopwords)
+        # "access to court" = 3 words (not 2 after removing "to")
+        query_word_count = len(term.split())
 
         for known_term, data in known_hudoc_terms.items():
-            known_word_count = len(self._extract_keywords(known_term))
+            # Count ACTUAL words in known term
+            known_word_count = len(known_term.split())
 
             # CRITICAL: STRICT word count filtering - legal principle
             # Don't extract single words from multi-word concepts and vice versa
+            # But remember: EN and PL can have different word counts!
+            # We only compare EN source terms (query vs known_term)
             word_count_diff = abs(query_word_count - known_word_count)
 
             # REJECT matches with large word count difference

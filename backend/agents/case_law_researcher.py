@@ -6,27 +6,38 @@ from typing import List, Dict, Any, Optional
 from services.hudoc_client import HUDOCClient
 from services.curia_client import CURIAClient
 from services.iate_client import IATEClient
+from services.tm_manager import TMManager
 
 logger = logging.getLogger(__name__)
 
 
 class CaseLawResearcher:
     """
-    Agent przeszukujący bazy orzeczeń (HUDOC, CURIA, IATE) dla terminologii prawniczej.
+    Agent przeszukujący TM i bazy orzeczeń (HUDOC, CURIA, IATE) dla terminologii prawniczej.
 
     Odpowiedzialny za:
-    - Wyszukiwanie terminów w bazach HUDOC, CURIA i IATE
+    - Wyszukiwanie terminów NAJPIERW w pamięci tłumaczeniowej (TM)
+    - Jeśli brak w TM: wyszukiwanie w bazach HUDOC, CURIA i IATE
     - Wzbogacanie terminów o oficjalne tłumaczenia
     - Priorytetyzację wyników na podstawie źródła i pewności
-      (HUDOC > CURIA > IATE)
+      (TM > HUDOC > CURIA > IATE)
     """
 
     def __init__(self):
         """Inicjalizacja Case Law Researcher."""
+        # Initialize TM Manager FIRST - highest priority source
+        self.tm_manager = TMManager()
+        try:
+            tm_count = self.tm_manager.load()
+            logger.info(f"Loaded {tm_count} entries from Translation Memory")
+        except Exception as e:
+            logger.warning(f"Failed to load TM: {e}. Continuing without TM.")
+
+        # Initialize database clients
         self.hudoc_client = HUDOCClient()
         self.curia_client = CURIAClient()
         self.iate_client = IATEClient()
-        logger.info("Case Law Researcher initialized with HUDOC, CURIA, and IATE")
+        logger.info("Case Law Researcher initialized with TM, HUDOC, CURIA, and IATE")
 
     async def enrich_terms(
         self, terms: List[Dict[str, Any]], document_id: Optional[str] = None, ws_manager = None, current_progress: float = 0.5
@@ -72,7 +83,13 @@ class CaseLawResearcher:
         self, source_term: str, original_term: Dict[str, Any], document_id: Optional[str] = None, ws_manager = None, current_progress: float = 0.5
     ) -> Dict[str, Any]:
         """
-        Wzbogaca pojedynczy termin o wyniki z HUDOC, CURIA i IATE.
+        Wzbogaca pojedynczy termin o wyniki z TM, HUDOC, CURIA i IATE.
+
+        PRIORITY ORDER:
+        1. Translation Memory (TM) - najwyższy priorytet, tłumaczenie już zatwierdzone
+        2. HUDOC - orzecznictwo ETPCz
+        3. CURIA - orzecznictwo TSUE
+        4. IATE - terminologia UE
 
         Args:
             source_term: Termin angielski
@@ -84,7 +101,48 @@ class CaseLawResearcher:
             Wzbogacony słownik terminu
         """
         try:
-            # Send detailed progress for each database
+            # STEP 1: Check Translation Memory FIRST (highest priority)
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "searching_tm", current_progress,
+                    f"   💾 Sprawdzam pamięć tłumaczeniową dla '{source_term}'..."
+                )
+
+            tm_entry = self.tm_manager.find_exact(source_term)
+            if tm_entry:
+                logger.info(f"Found exact TM match for '{source_term}': {tm_entry.target}")
+                if ws_manager and document_id:
+                    await ws_manager.broadcast_progress(
+                        document_id, "tm_found", current_progress,
+                        f"   ✓ TM: znaleziono zatwierdzone tłumaczenie!"
+                    )
+
+                # Return term enriched with TM translation (highest confidence)
+                enriched = original_term.copy()
+                enriched["official_translation"] = tm_entry.target
+                enriched["translation_source"] = "tm"
+                enriched["source_type"] = "tm"
+                enriched["translation_confidence"] = 1.0  # Perfect confidence for TM
+                enriched["case_law_references"] = [
+                    {
+                        "source": "tm",
+                        "term_en": source_term,
+                        "term_pl": tm_entry.target,
+                        "confidence": 1.0,
+                        "metadata": tm_entry.metadata,
+                    }
+                ]
+                enriched["reference_count"] = 1
+                logger.info(f"Using TM translation for '{source_term}'")
+                return enriched
+
+            if ws_manager and document_id:
+                await ws_manager.broadcast_progress(
+                    document_id, "tm_not_found", current_progress,
+                    f"   ⊘ TM: brak w pamięci, przeszukuję bazy danych..."
+                )
+
+            # STEP 2: If not in TM, search databases (HUDOC, CURIA, IATE)
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
                     document_id, "searching_hudoc", current_progress,
