@@ -29,7 +29,7 @@ class CaseLawResearcher:
         logger.info("Case Law Researcher initialized with HUDOC, CURIA, and IATE")
 
     async def enrich_terms(
-        self, terms: List[Dict[str, Any]], document_id: Optional[str] = None, ws_manager = None
+        self, terms: List[Dict[str, Any]], document_id: Optional[str] = None, ws_manager = None, current_progress: float = 0.5
     ) -> List[Dict[str, Any]]:
         """
         Wzbogaca terminy o wyniki z baz orzeczeń.
@@ -57,19 +57,19 @@ class CaseLawResearcher:
             # Send progress update for each term
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "searching_databases", None,
+                    document_id, "searching_databases", current_progress,
                     f"🌐 Przeszukuję HUDOC, CURIA i IATE dla terminu '{source_term}' ({idx + 1}/{len(terms)})..."
                 )
 
             # Wzbogać termin o wyniki z baz orzeczeń
-            enriched_term = await self._enrich_single_term(source_term, term, document_id=document_id, ws_manager=ws_manager)
+            enriched_term = await self._enrich_single_term(source_term, term, document_id=document_id, ws_manager=ws_manager, current_progress=current_progress)
             enriched_terms.append(enriched_term)
 
         logger.info(f"Enriched {len(enriched_terms)} terms")
         return enriched_terms
 
     async def _enrich_single_term(
-        self, source_term: str, original_term: Dict[str, Any], document_id: Optional[str] = None, ws_manager = None
+        self, source_term: str, original_term: Dict[str, Any], document_id: Optional[str] = None, ws_manager = None, current_progress: float = 0.5
     ) -> Dict[str, Any]:
         """
         Wzbogaca pojedynczy termin o wyniki z HUDOC, CURIA i IATE.
@@ -87,7 +87,7 @@ class CaseLawResearcher:
             # Send detailed progress for each database
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "searching_hudoc", None,
+                    document_id, "searching_hudoc", current_progress,
                     f"   📚 Przeszukuję bazę HUDOC dla '{source_term}'..."
                 )
 
@@ -105,13 +105,13 @@ class CaseLawResearcher:
                 hudoc_results = []
             elif ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "hudoc_done", None,
+                    document_id, "hudoc_done", current_progress,
                     f"   ✓ HUDOC: znaleziono {len(hudoc_results)} wyników"
                 )
 
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "searching_curia", None,
+                    document_id, "searching_curia", current_progress,
                     f"   📚 Przeszukuję bazę CURIA dla '{source_term}'..."
                 )
 
@@ -120,13 +120,13 @@ class CaseLawResearcher:
                 curia_results = []
             elif ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "curia_done", None,
+                    document_id, "curia_done", current_progress,
                     f"   ✓ CURIA: znaleziono {len(curia_results)} wyników"
                 )
 
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "searching_iate", None,
+                    document_id, "searching_iate", current_progress,
                     f"   📚 Przeszukuję bazę IATE dla '{source_term}'..."
                 )
 
@@ -135,7 +135,7 @@ class CaseLawResearcher:
                 iate_results = []
             elif ws_manager and document_id:
                 await ws_manager.broadcast_progress(
-                    document_id, "iate_done", None,
+                    document_id, "iate_done", current_progress,
                     f"   ✓ IATE: znaleziono {len(iate_results)} wyników"
                 )
 

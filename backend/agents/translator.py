@@ -84,8 +84,10 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
                 if self.tm_manager:
                     # Send progress message about TM lookup
                     if ws_manager and document_id and i % 5 == 0:  # Send every 5 segments to avoid spam
+                        # Calculate progress within translation phase
+                        segment_progress = 0.5 + (i / len(segments)) * 0.4  # 50% to 90%
                         await ws_manager.broadcast_progress(
-                            document_id, "checking_tm", None,
+                            document_id, "checking_tm", segment_progress,
                             f"💾 Sprawdzam pamięć tłumaczeniową... (segment {i+1}/{len(segments)})"
                         )
 
