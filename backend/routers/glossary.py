@@ -22,6 +22,10 @@ from models.term import (
 )
 from db.database import get_db
 from db import models
+from services.tm_manager import TMManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/glossary", tags=["glossary"])
 
@@ -156,6 +160,34 @@ async def update_term(document_id: str, term_id: str, update: TermUpdate, db: Se
     db.commit()
     db.refresh(term)
 
+    # NOWE: Dodaj zatwierdzony termin do Translation Memory
+    if update.status == TermStatus.APPROVED or update.status == TermStatus.EDITED:
+        try:
+            logger.info(f"Adding approved term to TM: '{term.source_term}' -> '{term.target_term}'")
+            tm_manager = TMManager()
+            tm_manager.load()
+
+            # Przygotuj metadata z kontekstu
+            context = ""
+            if term.references and isinstance(term.references, dict):
+                context = term.references.get("context", "")
+
+            tm_manager.add_entry(
+                source=term.source_term,
+                target=term.target_term,
+                metadata={
+                    "source": term.source_type,
+                    "context": context,
+                    "approved_at": datetime.now().isoformat(),
+                    "document_id": document_id,
+                }
+            )
+            tm_manager.save()
+            logger.info(f"Successfully saved term to TM: '{term.source_term}'")
+        except Exception as e:
+            # Nie blokuj aktualizacji terminu jeśli TM zapis się nie uda
+            logger.error(f"Failed to save term to TM: {e}", exc_info=True)
+
     # Extract sources from references
     sources_list = []
     context = None
@@ -217,6 +249,36 @@ async def approve_all_pending(document_id: str, db: Session = Depends(get_db)):
         count += 1
 
     db.commit()
+
+    # NOWE: Dodaj wszystkie zatwierdzone terminy do Translation Memory
+    if pending_terms:
+        try:
+            logger.info(f"Adding {len(pending_terms)} approved terms to TM")
+            tm_manager = TMManager()
+            tm_manager.load()
+
+            for term in pending_terms:
+                # Przygotuj metadata z kontekstu
+                context = ""
+                if term.references and isinstance(term.references, dict):
+                    context = term.references.get("context", "")
+
+                tm_manager.add_entry(
+                    source=term.source_term,
+                    target=term.target_term,
+                    metadata={
+                        "source": term.source_type,
+                        "context": context,
+                        "approved_at": datetime.now().isoformat(),
+                        "document_id": document_id,
+                    }
+                )
+
+            tm_manager.save()
+            logger.info(f"Successfully saved {len(pending_terms)} terms to TM")
+        except Exception as e:
+            # Nie blokuj zatwierdzenia jeśli TM zapis się nie uda
+            logger.error(f"Failed to save terms to TM: {e}", exc_info=True)
 
     return {"message": f"Approved {count} terms", "count": count}
 

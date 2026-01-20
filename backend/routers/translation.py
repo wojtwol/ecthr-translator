@@ -366,6 +366,11 @@ async def _run_translation(
                             references["case_law_references"] = term_data.get("case_law_references")
                             references["reference_count"] = term_data.get("reference_count", 0)
 
+                        # NOWE: Dodaj translation_options (wszystkie opcje tłumaczeń)
+                        if term_data.get("translation_options"):
+                            references["translation_options"] = term_data.get("translation_options")
+                            references["options_count"] = term_data.get("options_count", 0)
+
                         # Legacy support for old format
                         if term_data.get("hudoc_reference"):
                             references["hudoc"] = term_data.get("hudoc_reference")
@@ -374,9 +379,31 @@ async def _run_translation(
                         if term_data.get("context"):
                             references["context"] = term_data.get("context")
 
-                        # Use official translation if available, otherwise proposed
-                        target_term = term_data.get("official_translation", term_data.get("proposed_translation", ""))
-                        source_type = term_data.get("translation_source", term_data.get("source_type", "proposed"))
+                        # NOWA LOGIKA: Wybierz domyślne tłumaczenie z opcji
+                        # Priorytet: TM > HUDOC > CURIA > IATE > AI Proposal
+                        target_term = ""
+                        source_type = "proposed"  # default
+                        confidence = 0.5  # default
+
+                        translation_options = term_data.get("translation_options", [])
+                        if translation_options:
+                            # Sortuj opcje według priorytetu
+                            priority_order = {"tm_exact": 0, "hudoc": 1, "curia": 2, "iate": 3, "proposed": 4}
+                            sorted_options = sorted(
+                                translation_options,
+                                key=lambda x: (priority_order.get(x.get("source_type", "proposed"), 999), -x.get("confidence", 0))
+                            )
+
+                            # Wybierz pierwszą (najwyższą w priorytecie)
+                            best_option = sorted_options[0]
+                            target_term = best_option.get("term_pl", "")
+                            source_type = best_option.get("source_type", "proposed")
+                            confidence = best_option.get("confidence", 0.5)
+                        else:
+                            # Fallback na starą logikę (dla kompatybilności wstecznej)
+                            target_term = term_data.get("official_translation", term_data.get("proposed_translation", ""))
+                            source_type = term_data.get("translation_source", term_data.get("source_type", "proposed"))
+                            confidence = term_data.get("translation_confidence", term_data.get("confidence", 0.5))
 
                         db_term = models.Term(
                             id=str(uuid.uuid4()),
@@ -385,7 +412,7 @@ async def _run_translation(
                             target_term=target_term,
                             original_proposal=term_data.get("proposed_translation", ""),
                             source_type=source_type,
-                            confidence=term_data.get("translation_confidence", term_data.get("confidence", 0.5)),
+                            confidence=confidence,
                             references=references if references else None,
                             status="pending",
                         )
