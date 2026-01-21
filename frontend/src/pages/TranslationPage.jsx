@@ -766,6 +766,28 @@ const TranslationPage = () => {
               </div>
             )}
 
+            {/* Finalization In Progress Banner - Show during final translation */}
+            {translationStatus === 'finalizing' && (
+              <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 text-purple-600 text-2xl">
+                    🔄
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-purple-900">
+                      Generowanie finalnego tłumaczenia...
+                    </p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      📝 Aplikowanie zatwierdzonej terminologii i generowanie dokumentu
+                    </p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      ⏱️ To może potrwać kilka minut - proszę czekać...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Translated Segments Preview - Show after translation complete */}
             {translatedSegments.length > 0 && (
               <div className="bg-white rounded-lg shadow p-6 mb-6">

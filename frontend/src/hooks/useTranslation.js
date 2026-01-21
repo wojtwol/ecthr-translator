@@ -104,6 +104,14 @@ export const useTranslation = (documentId) => {
   // Finalize translation after validation
   const finalizeTranslation = useCallback(async () => {
     try {
+      // Set status to finalizing with progress indicator
+      setTranslationStatus('finalizing');
+      setProgress({
+        stage: 'finalizing',
+        progress: 0.5,
+        message: 'Rozpoczęto generowanie finalnego tłumaczenia z zatwierdzoną terminologią...',
+      });
+
       const response = await fetch(`https://ecthr-translator.onrender.com/api/translation/${documentId}/finalize`, {
         method: 'POST',
       });
@@ -113,10 +121,19 @@ export const useTranslation = (documentId) => {
       }
 
       const data = await response.json();
+
+      // Set completion status with success message
       setTranslationStatus('complete');
+      setProgress({
+        stage: 'complete',
+        progress: 1.0,
+        message: 'Finalne tłumaczenie zostało wygenerowane!',
+      });
+
       return data;
     } catch (err) {
       setError(err.message);
+      setTranslationStatus('error');
       throw err;
     }
   }, [documentId]);
