@@ -195,6 +195,69 @@ async def update_term(document_id: str, term_id: str, update: TermUpdate, db: Se
     )
 
 
+@router.post("/{document_id}/{term_id}/apply-to-translation")
+async def apply_term_to_translation(
+    document_id: str,
+    term_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Apply updated term translation to all segments in the document.
+
+    This endpoint finds all occurrences of the term's old translation in segments
+    and replaces them with the new translation.
+
+    Args:
+        document_id: Document ID
+        term_id: Term ID
+        db: Database session
+
+    Returns:
+        Dict with number of segments updated
+    """
+    # Find the term
+    term = db.query(models.Term).filter(
+        models.Term.id == term_id,
+        models.Term.document_id == document_id
+    ).first()
+
+    if not term:
+        raise HTTPException(status_code=404, detail="Term not found")
+
+    # Get old and new translations
+    new_translation = term.target_term
+    old_translation = term.original_proposal if term.original_proposal else term.target_term
+
+    if old_translation == new_translation:
+        return {"segments_updated": 0, "message": "No change in translation"}
+
+    # Get all translated segments for this document
+    segments = db.query(models.Segment).filter(
+        models.Segment.document_id == document_id,
+        models.Segment.target_text.isnot(None),
+        models.Segment.target_text != ""
+    ).all()
+
+    updated_count = 0
+
+    # Replace old translation with new in each segment
+    for segment in segments:
+        if old_translation in segment.target_text:
+            # Simple case-sensitive replacement
+            segment.target_text = segment.target_text.replace(old_translation, new_translation)
+            segment.updated_at = datetime.now()
+            updated_count += 1
+
+    db.commit()
+
+    return {
+        "segments_updated": updated_count,
+        "old_translation": old_translation,
+        "new_translation": new_translation,
+        "message": f"Updated {updated_count} segment(s)"
+    }
+
+
 @router.post("/{document_id}/approve-all")
 async def approve_all_pending(document_id: str, db: Session = Depends(get_db)):
     """

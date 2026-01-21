@@ -81,6 +81,11 @@ export const glossaryApi = {
     return response.data;
   },
 
+  applyTermToTranslation: async (documentId, termId) => {
+    const response = await client.post(`/glossary/${documentId}/${termId}/apply-to-translation`);
+    return response.data;
+  },
+
   approveAll: async (documentId) => {
     const response = await client.post(`/glossary/${documentId}/approve-all`);
     return response.data;

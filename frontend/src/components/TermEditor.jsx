@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const TermEditor = ({ term, documentId, onClose, onSave }) => {
+const TermEditor = ({ term, documentId, onClose, onSave, translationStatus, onApplyToTranslation }) => {
   const [editedTerm, setEditedTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     if (term) {
@@ -52,6 +53,22 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleApplyToTranslation = async () => {
+    if (!onApplyToTranslation) return;
+
+    setApplying(true);
+    try {
+      const result = await onApplyToTranslation(term.id);
+      alert(`✓ Zaktualizowano ${result.segments_updated} segmentów\n\n"${result.old_translation}" → "${result.new_translation}"`);
+      onClose();
+    } catch (error) {
+      console.error('Failed to apply term to translation:', error);
+      alert(`Nie udało się zaktualizować tłumaczenia: ${error.message}`);
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -205,24 +222,41 @@ const TermEditor = ({ term, documentId, onClose, onSave }) => {
 
         {/* Actions */}
         <div className="p-6 border-t border-gray-200 bg-gray-50">
+          {/* Show "Apply to Translation" button if translation is completed and term was edited */}
+          {translationStatus === 'completed' && term.original_proposal && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900 mb-3">
+                <strong>💡 Tłumaczenie zakończone:</strong> Ten termin został zmieniony po zakończeniu tłumaczenia.
+                Kliknij poniżej, aby automatycznie zaktualizować wszystkie wystąpienia w już przetłumaczonych segmentach.
+              </p>
+              <button
+                onClick={handleApplyToTranslation}
+                disabled={applying || saving}
+                className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {applying ? '⏳ Aktualizuję tłumaczenie...' : '🔄 Zaktualizuj tłumaczenie'}
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3 justify-end">
             <button
               onClick={() => handleSave('rejected')}
-              disabled={saving}
+              disabled={saving || applying}
               className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               ✗ Odrzuć
             </button>
             <button
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || applying}
               className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               Anuluj
             </button>
             <button
               onClick={() => handleSave(editedTerm === term.target_term ? 'approved' : 'edited')}
-              disabled={saving || !editedTerm.trim()}
+              disabled={saving || applying || !editedTerm.trim()}
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
               {saving ? 'Zapisywanie...' : editedTerm === term.target_term ? '✓ Zatwierdź' : '✓ Zatwierdź ze zmianami'}

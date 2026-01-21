@@ -171,6 +171,33 @@ export const useTranslation = (documentId) => {
     }
   }, [documentId, fetchTerms]);
 
+  // Apply term changes to translation segments
+  const applyTermToTranslation = useCallback(async (termId) => {
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${termId}/apply-to-translation`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to apply term to translation');
+      }
+
+      const result = await response.json();
+
+      // Refresh translated segments to show updates
+      await fetchDocument();
+
+      return result;
+    } catch (err) {
+      console.error('Failed to apply term to translation:', err);
+      throw err;
+    }
+  }, [documentId, fetchDocument]);
+
   // WebSocket connection
   useEffect(() => {
     if (!documentId) return;
@@ -381,6 +408,7 @@ export const useTranslation = (documentId) => {
     startTranslation,
     finalizeTranslation,
     updateTerm,
+    applyTermToTranslation,
     refreshTerms: fetchTerms,
     refreshDocument: fetchDocument,
   };

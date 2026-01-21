@@ -24,6 +24,7 @@ const TranslationPage = () => {
     startTranslation,
     finalizeTranslation,
     updateTerm,
+    applyTermToTranslation,
     refreshTerms,
   } = useTranslation(documentId);
 
@@ -869,6 +870,8 @@ const TranslationPage = () => {
           documentId={documentId}
           onClose={() => setSelectedTerm(null)}
           onSave={handleTermSave}
+          translationStatus={translationStatus}
+          onApplyToTranslation={applyTermToTranslation}
         />
       )}
 
