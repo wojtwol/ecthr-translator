@@ -20,6 +20,7 @@ const TranslationPage = () => {
     loading,
     translatedSegments,
     extractionComplete,
+    batchInfo,
     startTranslation,
     finalizeTranslation,
     updateTerm,
@@ -688,9 +689,25 @@ const TranslationPage = () => {
                     ⏳
                   </div>
                   <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-blue-900">
-                      Ekstrakcja w toku...
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm font-medium text-blue-900">
+                        Ekstrakcja w toku...
+                      </p>
+                      {batchInfo.total > 0 && (
+                        <span className="px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-bold">
+                          Batch {batchInfo.current}/{batchInfo.total}
+                        </span>
+                      )}
+                    </div>
+                    {batchInfo.total > 0 && (
+                      <div className="mt-2 mb-1">
+                        <ProgressBar
+                          current={batchInfo.current}
+                          total={batchInfo.total}
+                          label="Postęp ekstrakcji"
+                        />
+                      </div>
+                    )}
                     <p className="text-xs text-blue-700 mt-1">
                       📚 Dotychczas znaleziono <strong>{stats.total}</strong> terminów
                       {stats.from_hudoc > 0 && ` (⚖️ ${stats.from_hudoc} z HUDOC`}

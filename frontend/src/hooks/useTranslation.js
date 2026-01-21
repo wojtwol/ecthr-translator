@@ -13,6 +13,7 @@ export const useTranslation = (documentId) => {
   const [loading, setLoading] = useState(true);
   const [translatedSegments, setTranslatedSegments] = useState([]); // Live segments during translation
   const [extractionComplete, setExtractionComplete] = useState(false); // Track if ALL batches are done
+  const [batchInfo, setBatchInfo] = useState({ current: 0, total: 0 }); // Track batch progress
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -75,6 +76,7 @@ export const useTranslation = (documentId) => {
       setTranslationStatus('translating');
       setError(null);
       setExtractionComplete(false); // Reset extraction flag
+      setBatchInfo({ current: 0, total: 0 }); // Reset batch info
 
       const response = await fetch(`https://ecthr-translator.onrender.com/api/translation/${documentId}/start`, {
         method: 'POST',
@@ -239,6 +241,12 @@ export const useTranslation = (documentId) => {
               fetchTerms(); // Refresh terms list to show new batch
               fetchSegments(); // Fetch segments to show live preview
 
+              // Update batch progress info
+              setBatchInfo({
+                current: message.data.batch_num || 0,
+                total: message.data.total_batches || 0,
+              });
+
               if (!message.data.is_last) {
                 // More batches coming - show "in progress" message
                 setExtractionComplete(false);
@@ -352,6 +360,7 @@ export const useTranslation = (documentId) => {
     loading,
     translatedSegments,
     extractionComplete,
+    batchInfo,
     startTranslation,
     finalizeTranslation,
     updateTerm,
