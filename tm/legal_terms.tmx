@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tmx SYSTEM "tmx14.dtd">
+<tmx version="1.4">
+  <header
+    creationtool="ECTHR-Translator"
+    creationtoolversion="1.0"
+    segtype="sentence"
+    o-tmf="PlainText"
+    adminlang="en-US"
+    srclang="en-US"
+    datatype="PlainText"
+  />
+  <body>
+    <!-- Article (legislative unit) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Article</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>art.</seg>
+      </tuv>
+      <prop type="x-category">legal_term</prop>
+      <prop type="x-context">Legislative unit reference (e.g., Article 6 of the Convention)</prop>
+    </tu>
+
+    <!-- Article with specific number examples -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Article 6</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>art. 6</seg>
+      </tuv>
+      <prop type="x-category">convention_article</prop>
+      <prop type="x-context">Article 6 - Right to a fair trial</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Article 8</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>art. 8</seg>
+      </tuv>
+      <prop type="x-category">convention_article</prop>
+      <prop type="x-context">Article 8 - Right to respect for private and family life</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Article 10</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>art. 10</seg>
+      </tuv>
+      <prop type="x-category">convention_article</prop>
+      <prop type="x-context">Article 10 - Freedom of expression</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Article 13</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>art. 13</seg>
+      </tuv>
+      <prop type="x-category">convention_article</prop>
+      <prop type="x-context">Article 13 - Right to an effective remedy</prop>
+    </tu>
+
+    <!-- Paragraph (subdivision of Article) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>paragraph</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>ust.</seg>
+      </tuv>
+      <prop type="x-category">legal_term</prop>
+      <prop type="x-context">Paragraph/subsection of an article (e.g., Article 6 § 1 → art. 6 ust. 1)</prop>
+    </tu>
+
+    <!-- Section (in judgments) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>section</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>sekcja</seg>
+      </tuv>
+      <prop type="x-category">legal_term</prop>
+      <prop type="x-context">Section of a judgment or legal document</prop>
+    </tu>
+
+    <!-- Subparagraph -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>subparagraph</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>punkt</seg>
+      </tuv>
+      <prop type="x-category">legal_term</prop>
+      <prop type="x-context">Subparagraph/point within a paragraph</prop>
+    </tu>
+
+    <!-- Point (in legal enumeration) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>point</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>pkt</seg>
+      </tuv>
+      <prop type="x-category">legal_term</prop>
+      <prop type="x-context">Point in legal enumeration</prop>
+    </tu>
+  </body>
+</tmx>
