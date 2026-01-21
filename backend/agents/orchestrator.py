@@ -288,7 +288,9 @@ class Orchestrator:
                 logger.info(f"Batch {batch_idx + 1}: Translated {len(translated_batch)} segments")
 
                 # Wywołaj callback z batchem terminów
-                if on_batch_ready and batch_terms:
+                # CRITICAL: Always call callback for last batch, even if no terms found
+                # Frontend needs is_last=True signal to finalize extraction
+                if on_batch_ready and (batch_terms or is_last_batch):
                     try:
                         await on_batch_ready(batch_terms, translated_batch, is_last_batch, batch_idx + 1, num_batches)
                     except Exception as e:
