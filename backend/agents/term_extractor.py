@@ -38,12 +38,29 @@ Skup się na:
 - Terminach proceduralnych (applicant, respondent Government, etc.)
 - Nazwach artykułów Konwencji i Protokołów
 - Łacińskich maksymach prawniczych
+- PEŁNYCH nazwach sądów i instytucji
 
 CRITICAL RULES:
 1. Extract ONLY terms that appear in the segment above
 2. Use the exact phrase from the segment as "context" - do not paraphrase or invent
 3. DO NOT add terms that are not in the segment
 4. DO NOT complete or infer missing information
+
+CRITICAL RULES FOR COURT/INSTITUTION NAMES:
+5. Extract FULL names of courts and institutions, NOT individual words
+   ✓ CORRECT: "Warsaw Court of Appeal" → "Sąd Apelacyjny w Warszawie"
+   ✗ WRONG: "Appeal" alone (missing context - which appeal?)
+   ✓ CORRECT: "Supreme Court" → "Sąd Najwyższy"
+   ✗ WRONG: "Court" alone (missing which court)
+   ✓ CORRECT: "District Court of Warsaw" → "Sąd Rejonowy w Warszawie"
+   ✗ WRONG: "District Court" without location
+
+6. For proper names of institutions, extract the complete official name:
+   ✓ "European Court of Human Rights"
+   ✓ "Constitutional Tribunal"
+   ✓ "National Council of the Judiciary"
+   ✗ NOT: "Tribunal" alone
+   ✗ NOT: "Council" alone
 
 Odpowiedz w formacie JSON:
 {{
@@ -52,7 +69,7 @@ Odpowiedz w formacie JSON:
             "source_term": "margin of appreciation",
             "proposed_translation": "margines oceny",
             "context": "exact sentence from segment where term appears",
-            "term_type": "ecthr_specific" | "procedural" | "convention" | "latin",
+            "term_type": "ecthr_specific" | "procedural" | "convention" | "latin" | "court_name" | "institution",
             "confidence": 0.0-1.0
         }}
     ]
