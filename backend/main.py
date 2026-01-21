@@ -48,11 +48,34 @@ async def startup_event():
 
     # Ensure data directories exist (critical for Render /tmp storage)
     import os
+    import shutil
+    from pathlib import Path
+
     os.makedirs("/tmp/data", exist_ok=True)
     os.makedirs(settings.tm_path, exist_ok=True)
     os.makedirs(settings.upload_path, exist_ok=True)
     os.makedirs(settings.output_path, exist_ok=True)
     logger.info("Data directories created")
+
+    # Copy bundled TM files to runtime TM directory
+    # This ensures default terminology is always available
+    repo_tm_dir = Path(__file__).parent.parent / "tm"
+    if repo_tm_dir.exists():
+        tmx_files = list(repo_tm_dir.glob("*.tmx"))
+        if tmx_files:
+            logger.info(f"Copying {len(tmx_files)} bundled TM files to {settings.tm_path}")
+            for tmx_file in tmx_files:
+                dest = settings.tm_path / tmx_file.name
+                # Only copy if doesn't exist or is older than source
+                if not dest.exists() or tmx_file.stat().st_mtime > dest.stat().st_mtime:
+                    shutil.copy2(tmx_file, dest)
+                    logger.info(f"  ✓ Copied {tmx_file.name}")
+                else:
+                    logger.info(f"  → {tmx_file.name} (already up-to-date)")
+        else:
+            logger.warning(f"No TMX files found in {repo_tm_dir}")
+    else:
+        logger.warning(f"Bundled TM directory not found: {repo_tm_dir}")
 
     # Initialize database
     init_db()
