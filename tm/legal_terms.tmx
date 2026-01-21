@@ -139,5 +139,29 @@
       <prop type="x-category">legal_principle</prop>
       <prop type="x-context">Fundamental legal principle of rule of law (capitalized)</prop>
     </tu>
+
+    <!-- Registrar (ECtHR) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Registrar</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Kanclerz</seg>
+      </tuv>
+      <prop type="x-category">court_position</prop>
+      <prop type="x-context">Registrar of the European Court of Human Rights</prop>
+    </tu>
+
+    <!-- registrar (lowercase) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>registrar</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>kanclerz</seg>
+      </tuv>
+      <prop type="x-category">court_position</prop>
+      <prop type="x-context">Registrar of the court</prop>
+    </tu>
   </body>
 </tmx>
