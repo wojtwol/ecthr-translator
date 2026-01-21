@@ -62,13 +62,36 @@ CRITICAL RULES FOR COURT/INSTITUTION NAMES:
    ✗ NOT: "Tribunal" alone
    ✗ NOT: "Council" alone
 
+CRITICAL RULES FOR CONTEXT-DEPENDENT TERMS:
+7. The SAME word can have DIFFERENT translations depending on context!
+   Extract each occurrence separately with its specific context and translation:
+
+   Example with "appeal":
+   ✓ "Court of Appeal" → "Sąd Apelacyjny" (institution name)
+   ✓ "filed an appeal" → "wniosła apelację" (judicial remedy to court)
+   ✓ "submitted an appeal to the Ministry" → "złożył odwołanie" (administrative appeal to non-court body)
+
+   Example with "application":
+   ✓ "the application to the Court" → "skarga do Trybunału" (ECtHR complaint)
+   ✓ "application for leave to appeal" → "wniosek o dopuszczenie apelacji" (procedural motion)
+
+   Example with "court":
+   ✓ "the Warsaw Regional Court" → "Sąd Okręgowy w Warszawie" (specific court)
+   ✓ "appeared in court" → "stawił się w sądzie" (generic reference)
+
+8. ALWAYS include rich context showing HOW the term is used:
+   - Include surrounding words that clarify meaning
+   - Show if it's part of a procedural phrase
+   - Indicate if referring to institution vs. action
+   - Preserve grammatical context (e.g., "filed an appeal", not just "appeal")
+
 Odpowiedz w formacie JSON:
 {{
     "terms": [
         {{
             "source_term": "margin of appreciation",
             "proposed_translation": "margines oceny",
-            "context": "exact sentence from segment where term appears",
+            "context": "exact sentence from segment where term appears (include 5-10 words around the term for clarity)",
             "term_type": "ecthr_specific" | "procedural" | "convention" | "latin" | "court_name" | "institution",
             "confidence": 0.0-1.0
         }}
@@ -149,8 +172,12 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                     term["segment_index"] = i
                     term["source_segment"] = segment_text
 
-                    # Sprawdź czy termin już nie był ekstrahowany
-                    term_key = term["source_term"].lower()
+                    # CRITICAL: Cache key includes context to allow same term with different meanings
+                    # Example: "appeal" in "Court of Appeal" vs "filed an appeal" vs "appeal to Ministry"
+                    # Each needs separate entry with different translation
+                    context_snippet = term.get("context", "")[:100]  # First 100 chars for cache key
+                    term_key = f"{term['source_term'].lower()}|{context_snippet.lower()}"
+
                     if term_key not in self.extracted_terms_cache:
                         self.extracted_terms_cache[term_key] = term
                         all_terms.append(term)
