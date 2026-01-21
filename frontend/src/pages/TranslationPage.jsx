@@ -38,16 +38,26 @@ const TranslationPage = () => {
   const [glossaryRefreshTrigger, setGlossaryRefreshTrigger] = useState(0);
 
   // Polling backup for terms when WebSocket fails during validation
+  // IMPORTANT: Also refresh GlossaryPanel to show newly extracted terms
   useEffect(() => {
     if (translationStatus === 'validating' || translationStatus === 'translating') {
       const interval = setInterval(() => {
         console.log('[Polling] Refreshing terms and segments as backup...');
         refreshTerms();
+        setGlossaryRefreshTrigger(prev => prev + 1); // Trigger GlossaryPanel refresh
       }, 5000); // Poll every 5 seconds
 
       return () => clearInterval(interval);
     }
   }, [translationStatus, refreshTerms]);
+
+  // Auto-refresh GlossaryPanel when new terms are extracted (stats.total changes)
+  useEffect(() => {
+    if (stats && stats.total > 0 && translationStatus === 'validating') {
+      console.log('[Auto-refresh] New terms detected, refreshing GlossaryPanel...');
+      setGlossaryRefreshTrigger(prev => prev + 1);
+    }
+  }, [stats?.total, translationStatus]);
 
   // Remove auto-start - user must click "Translate" button
 
