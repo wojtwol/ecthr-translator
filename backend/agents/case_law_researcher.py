@@ -116,9 +116,23 @@ class CaseLawResearcher:
                     f"   💾 Sprawdzam pamięć tłumaczeniową dla '{source_term}'..."
                 )
 
+            # Try exact match first
             tm_entry = self.tm_manager.find_exact(source_term)
+            tm_translated = None
+            tm_match_type = "tm_exact"
+
+            # If no exact match, try prefix matching (e.g., "Article 44 § 2" matches "Article" → "art.")
+            if not tm_entry:
+                prefix_result = self.tm_manager.find_prefix(source_term)
+                if prefix_result:
+                    tm_entry, tm_translated = prefix_result
+                    tm_match_type = "tm_prefix"
+                    logger.info(f"Found prefix TM match for '{source_term}': '{tm_entry.source}' → '{tm_translated}'")
+            else:
+                tm_translated = tm_entry.target
+
             if tm_entry:
-                logger.info(f"Found exact TM match for '{source_term}': {tm_entry.target} - STOPPING search")
+                logger.info(f"Found TM match for '{source_term}': {tm_translated} - STOPPING search")
                 if ws_manager and document_id:
                     await ws_manager.broadcast_progress(
                         document_id, "tm_found", current_progress,
@@ -127,17 +141,17 @@ class CaseLawResearcher:
 
                 # Dodaj opcję TM do listy
                 all_translation_options.append({
-                    "source_type": "tm_exact",
-                    "term_pl": tm_entry.target,
+                    "source_type": tm_match_type,
+                    "term_pl": tm_translated,
                     "confidence": 1.0,
                     "metadata": tm_entry.metadata,
                 })
 
                 # Dodaj referencję TM
                 all_references.append({
-                    "source": "tm_exact",
+                    "source": tm_match_type,
                     "term_en": source_term,
-                    "term_pl": tm_entry.target,
+                    "term_pl": tm_translated,
                     "confidence": 1.0,
                     "context": original_term.get("context", ""),
                     "metadata": tm_entry.metadata,

@@ -10,6 +10,7 @@ class TermSource(str, Enum):
     """Source of the term translation."""
 
     TM_EXACT = "tm_exact"
+    TM_PREFIX = "tm_prefix"  # Prefix match (e.g., "Article" → "art." applied to "Article 44 § 2" → "art. 44 § 2")
     TM_FUZZY = "tm_fuzzy"
     HUDOC = "hudoc"
     CURIA = "curia"

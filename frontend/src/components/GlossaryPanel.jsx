@@ -216,6 +216,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                         term.source_type === 'curia' ? 'bg-indigo-100 text-indigo-800' :
                         term.source_type === 'iate' ? 'bg-purple-100 text-purple-800' :
                         term.source_type === 'tm_exact' ? 'bg-green-100 text-green-800' :
+                        term.source_type === 'tm_prefix' ? 'bg-green-100 text-green-800' :
                         term.source_type === 'tm_fuzzy' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
@@ -223,6 +224,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                          term.source_type === 'curia' ? '🏛️ CURIA' :
                          term.source_type === 'iate' ? '🇪🇺 IATE' :
                          term.source_type === 'tm_exact' ? '✓ TM (100%)' :
+                         term.source_type === 'tm_prefix' ? '✓ TM (prefix)' :
                          term.source_type === 'tm_fuzzy' ? '≈ TM (fuzzy)' :
                          term.source_type === 'proposed' ? '💡 Propozycja' :
                          term.source_type}

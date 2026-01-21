@@ -156,6 +156,36 @@ class TMManager:
 
         return None
 
+    def find_prefix(self, source_text: str) -> Optional[tuple[TMEntry, str]]:
+        """
+        Szuka wpisu TM który jest prefiksem terminu (dla przypadków jak "Article 44 § 2").
+
+        Args:
+            source_text: Tekst źródłowy (np. "Article 44 § 2")
+
+        Returns:
+            Tuple (TMEntry, translated_term) jeśli znaleziono, None w przeciwnym razie
+            Przykład: ("Article" → "art.", "art. 44 § 2")
+        """
+        source_normalized = source_text.strip().lower()
+
+        # Sortuj wpisy po długości (najdłuższe pierwsze) żeby znaleźć najbardziej szczegółowe dopasowanie
+        sorted_entries = sorted(self.entries, key=lambda e: len(e.source), reverse=True)
+
+        for entry in sorted_entries:
+            entry_normalized = entry.source.strip().lower()
+
+            # Sprawdź czy entry jest prefiksem terminu (z word boundary)
+            if source_normalized.startswith(entry_normalized + " "):
+                # Znaleziono prefix match - zbuduj pełne tłumaczenie
+                suffix = source_text[len(entry.source):].strip()
+                translated_term = f"{entry.target} {suffix}".strip()
+
+                logger.info(f"Prefix match found: '{entry.source}' → '{entry.target}' | Full: '{source_text}' → '{translated_term}'")
+                return (entry, translated_term)
+
+        return None
+
     def find_fuzzy(
         self, source_text: str, threshold: Optional[float] = None
     ) -> List[tuple[TMEntry, float]]:
