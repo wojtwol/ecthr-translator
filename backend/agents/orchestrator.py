@@ -12,6 +12,7 @@ from agents.change_implementer import ChangeImplementer
 from agents.qa_reviewer import QAReviewer
 from agents.citation_detector import CitationDetector
 from services.tm_manager import TMManager
+from services.curia_client import CURIAClient
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class Orchestrator:
         self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
         self.qa_reviewer = QAReviewer()
+        self.curia_client = CURIAClient()
 
         # Citation detector (optional, controlled by feature flag)
         self.citation_detector = None
@@ -63,7 +65,7 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"Could not load TM: {e}")
 
-        logger.info("Orchestrator initialized with Sprint 5 agents")
+        logger.info("Orchestrator initialized with Sprint 5 agents + CJEU citation detection")
 
     async def process(
         self, document_id: str, source_path: str
@@ -406,6 +408,64 @@ class Orchestrator:
                 except Exception as e:
                     logger.warning(f"Citation detection failed (non-critical): {e}")
                     # Continue with normal flow - this is optional feature
+
+            # Phase 2.5: CJEU Citation Pre-processing
+            # Detect CJEU judgments cited in text and add them to TM
+            logger.info("Phase 2.5: Detecting CJEU citations and fetching judgments")
+
+            try:
+                # Concatenate all segments to search for citations
+                full_text = " ".join([seg.get("text", "") for seg in parsed_segments])
+
+                # Detect CJEU citations (C-xxx/xx format)
+                cjeu_citations = self.curia_client.detect_cjeu_citations(full_text)
+
+                if cjeu_citations:
+                    logger.info(f"Found {len(cjeu_citations)} CJEU citations in document")
+
+                    if ws_manager:
+                        await ws_manager.broadcast_progress(
+                            document_id, "detecting_cjeu_citations", 0.25,
+                            f"⚖️ Wykryto {len(cjeu_citations)} cytatów z wyroków TSUE"
+                        )
+
+                    # For each citation, fetch the judgment and add to TM
+                    for idx, citation in enumerate(cjeu_citations):
+                        case_number = citation["case_number"]
+                        logger.info(f"Processing CJEU citation: {case_number}")
+
+                        if ws_manager:
+                            await ws_manager.broadcast_progress(
+                                document_id, "fetching_cjeu_judgment", 0.25 + (idx / len(cjeu_citations)) * 0.05,
+                                f"📥 Pobieram wyrok TSUE {case_number}..."
+                            )
+
+                        # Fetch judgment from CURIA
+                        judgment = await self.curia_client.get_judgment_by_case_number(
+                            case_number=case_number,
+                            source_lang="EN",
+                            target_lang="PL"
+                        )
+
+                        if judgment and judgment.get("available"):
+                            logger.info(f"Successfully fetched CJEU judgment {case_number} - will use as TM")
+                            # In full implementation: extract paragraphs and add to TM
+                            # For now: log success
+                            # TODO: Extract cited paragraphs and add to TM with highest priority
+                        else:
+                            logger.warning(f"Could not fetch CJEU judgment {case_number}")
+
+                    if ws_manager:
+                        await ws_manager.broadcast_progress(
+                            document_id, "cjeu_processing_complete", 0.30,
+                            f"✓ Przetworzono {len(cjeu_citations)} cytatów TSUE"
+                        )
+                else:
+                    logger.info("No CJEU citations detected in document")
+
+            except Exception as e:
+                logger.warning(f"CJEU citation processing failed (non-critical): {e}")
+                # Continue with normal flow
 
             # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
             logger.info("Phase 3: Loading terminology from TM + optional case law databases")

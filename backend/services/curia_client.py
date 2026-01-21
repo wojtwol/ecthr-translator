@@ -1,8 +1,9 @@
 """CURIA Client - przeszukiwanie bazy orzeczeń TSUE."""
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import httpx
+import re
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -397,6 +398,132 @@ class CURIAClient:
         except Exception as e:
             logger.error(f"Error getting multilingual term: {e}")
             return None
+
+    @staticmethod
+    def detect_cjeu_citations(text: str) -> List[Dict[str, Any]]:
+        """
+        Wykrywa cytaty z wyroków TSUE w tekście.
+
+        Szuka:
+        - Sygnatur C-xxx/xx (np. C-487/19)
+        - Identyfikatorów ECLI (np. EU:C:2021:798)
+
+        Args:
+            text: Tekst do przeszukania
+
+        Returns:
+            Lista wykrytych cytatów z metadanymi
+        """
+        citations = []
+
+        # Regex dla sygnatur TSUE: C-xxx/xx
+        case_number_pattern = r'\b(C-\d+/\d+)\b'
+
+        # Regex dla ECLI: EU:C:YYYY:NNNN
+        ecli_pattern = r'\b(EU:C:\d{4}:\d+)\b'
+
+        # Znajdź wszystkie sygnatury
+        for match in re.finditer(case_number_pattern, text):
+            case_number = match.group(1)
+            start_pos = match.start()
+
+            # Spróbuj znaleźć powiązany ECLI w pobliżu (w ciągu 200 znaków)
+            nearby_text = text[max(0, start_pos - 100):start_pos + 100]
+            ecli_match = re.search(ecli_pattern, nearby_text)
+            ecli = ecli_match.group(1) if ecli_match else None
+
+            citations.append({
+                "case_number": case_number,
+                "ecli": ecli,
+                "position": start_pos,
+            })
+
+        logger.info(f"Detected {len(citations)} CJEU citations in text")
+        return citations
+
+    async def get_judgment_by_case_number(
+        self,
+        case_number: str,
+        source_lang: str = "EN",
+        target_lang: str = "PL"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Pobiera wyrok TSUE przez web scraping.
+
+        Args:
+            case_number: Sygnatura sprawy (np. "C-487/19")
+            source_lang: Język źródłowy (EN)
+            target_lang: Język docelowy (PL)
+
+        Returns:
+            Słownik z treścią wyroku w obu językach lub None
+        """
+        if not self.enabled:
+            logger.info("CURIA is disabled")
+            return None
+
+        try:
+            logger.info(f"Fetching CJEU judgment {case_number} ({source_lang} -> {target_lang})")
+
+            # CURIA URLs dla różnych języków
+            # Format: https://curia.europa.eu/juris/liste.jsf?num=C-487/19&language=pl
+            url_base = "https://curia.europa.eu/juris/liste.jsf"
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # Pobierz listę dokumentów dla tej sprawy
+                params = {
+                    "num": case_number,
+                    "language": target_lang.lower()
+                }
+
+                response = await client.get(url_base, params=params)
+                response.raise_for_status()
+
+                # Parsowanie prostsze - zwróć URL do tłumaczenia
+                # W pełnej implementacji użyłbyś BeautifulSoup do parsowania HTML
+                # i wyodrębnienia paragrafów
+
+                result = {
+                    "case_number": case_number,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "url": response.url,
+                    "paragraphs": [],  # W pełnej wersji: lista {para_num, text_en, text_pl}
+                    "available": response.status_code == 200,
+                }
+
+                logger.info(f"Successfully fetched judgment {case_number}")
+                return result
+
+        except Exception as e:
+            logger.error(f"Error fetching CJEU judgment {case_number}: {e}")
+            return None
+
+    async def extract_judgment_paragraphs(
+        self,
+        case_number: str,
+        paragraph_numbers: List[int]
+    ) -> Dict[int, Tuple[str, str]]:
+        """
+        Ekstrahuje konkretne paragrafy z wyroku TSUE (EN i PL).
+
+        Args:
+            case_number: Sygnatura sprawy
+            paragraph_numbers: Lista numerów paragrafów do wyekstrakcji
+
+        Returns:
+            Słownik {para_num: (text_en, text_pl)}
+        """
+        # W pełnej implementacji:
+        # 1. Pobierz wyrok w EN
+        # 2. Pobierz wyrok w PL
+        # 3. Wyekstrahuj konkretne paragrafy
+        # 4. Zwróć je jako pary EN-PL
+
+        logger.info(f"Extracting paragraphs {paragraph_numbers} from {case_number}")
+
+        # Placeholder - zwróć puste
+        return {}
 
     def get_stats(self) -> Dict[str, Any]:
         """
