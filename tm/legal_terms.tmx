@@ -115,5 +115,29 @@
       <prop type="x-category">legal_term</prop>
       <prop type="x-context">Point in legal enumeration</prop>
     </tu>
+
+    <!-- Rule of law -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>rule of law</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>praworządność</seg>
+      </tuv>
+      <prop type="x-category">legal_principle</prop>
+      <prop type="x-context">Fundamental legal principle of rule of law</prop>
+    </tu>
+
+    <!-- Rule of Law (capitalized) -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Rule of Law</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>praworządność</seg>
+      </tuv>
+      <prop type="x-category">legal_principle</prop>
+      <prop type="x-context">Fundamental legal principle of rule of law (capitalized)</prop>
+    </tu>
   </body>
 </tmx>
