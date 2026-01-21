@@ -1,10 +1,10 @@
 import React from 'react';
 
-const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) => {
-  // Highlight terms in the text
+const TranslationPreview = ({ segments, terms, onTermClick }) => {
+  // Highlight terms in a single segment's text
   const highlightTerms = (text, termsList, useSourceTerms = false) => {
     if (!text || !termsList || termsList.length === 0) {
-      return <p className="whitespace-pre-wrap">{text}</p>;
+      return <span className="whitespace-pre-wrap">{text}</span>;
     }
 
     // Sort terms by length (longest first) to avoid partial matches
@@ -94,7 +94,7 @@ const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) 
       );
     }
 
-    return <p className="whitespace-pre-wrap">{result}</p>;
+    return <span className="whitespace-pre-wrap">{result}</span>;
   };
 
   return (
@@ -106,35 +106,53 @@ const TranslationPreview = ({ sourceText, translatedText, terms, onTermClick }) 
         </h3>
       </div>
 
-      {/* Parallel Content - Two Columns */}
+      {/* Parallel Content - Two Columns with Synchronized Segments */}
       <div className="grid grid-cols-2 gap-0 max-h-[600px] overflow-y-auto">
-        {/* Left Column - Source (EN) */}
-        <div className="border-r border-gray-200 p-6 bg-gray-50">
-          <div className="sticky top-0 bg-gray-50 pb-3 mb-3 border-b-2 border-gray-300">
-            <h4 className="font-semibold text-sm text-gray-700">📄 Tekst źródłowy (EN)</h4>
-          </div>
-          <div className="prose prose-sm max-w-none">
-            {sourceText ? (
-              highlightTerms(sourceText, terms, true)
-            ) : (
-              <p className="text-gray-400 italic">Brak tekstu źródłowego</p>
-            )}
-          </div>
+        {/* Column Headers */}
+        <div className="sticky top-0 z-10 bg-gray-50 border-r border-b border-gray-200 p-3">
+          <h4 className="font-semibold text-sm text-gray-700">📄 Tekst źródłowy (EN)</h4>
+        </div>
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 p-3">
+          <h4 className="font-semibold text-sm text-blue-700">🌍 Tłumaczenie (PL)</h4>
         </div>
 
-        {/* Right Column - Target (PL) */}
-        <div className="p-6 bg-white">
-          <div className="sticky top-0 bg-white pb-3 mb-3 border-b-2 border-blue-300">
-            <h4 className="font-semibold text-sm text-blue-700">🌍 Tłumaczenie (PL)</h4>
-          </div>
-          <div className="prose prose-sm max-w-none">
-            {translatedText ? (
-              highlightTerms(translatedText, terms, false)
-            ) : (
+        {/* Segments - Display in parallel rows */}
+        {segments && segments.length > 0 ? (
+          segments.map((segment, index) => (
+            <React.Fragment key={index}>
+              {/* Source segment */}
+              <div className="border-r border-b border-gray-200 p-4 bg-gray-50">
+                <div className="text-sm text-gray-900">
+                  {segment.source ? (
+                    highlightTerms(segment.source, terms, true)
+                  ) : (
+                    <span className="text-gray-400 italic">Brak tekstu</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Target segment */}
+              <div className="border-b border-gray-200 p-4 bg-white">
+                <div className="text-sm text-gray-900">
+                  {segment.target ? (
+                    highlightTerms(segment.target, terms, false)
+                  ) : (
+                    <span className="text-gray-400 italic">Tłumaczenie w toku...</span>
+                  )}
+                </div>
+              </div>
+            </React.Fragment>
+          ))
+        ) : (
+          <>
+            <div className="border-r border-gray-200 p-6 bg-gray-50 text-center">
+              <p className="text-gray-400 italic">Brak segmentów źródłowych</p>
+            </div>
+            <div className="p-6 bg-white text-center">
               <p className="text-gray-400 italic">Tłumaczenie w toku...</p>
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Legend */}
