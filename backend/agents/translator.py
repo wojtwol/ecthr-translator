@@ -32,6 +32,20 @@ OBOWIĄZKOWA TERMINOLOGIA (użyj dokładnie tych ekwiwalentów):
 Kontekst (poprzednie przetłumaczone segmenty):
 {context}
 
+CITATION FORMATTING RULES (Reguły formatowania cytowań orzeczeń):
+7. TSUE/CJEU (Trybunał Sprawiedliwości UE) case references:
+   - DO NOT add "nr" before case numbers
+   ✓ CORRECT: "w połączonych sprawach A.K. i inni (C-585/18, C-624/18 i C-625/18)"
+   ✗ WRONG: "w połączonych sprawach A.K. i inni (nr C-585/18, nr C-624/18 i nr C-625/18)"
+   - Format: Just the case number like "C-123/45" without "nr"
+
+8. ETPCz/ECtHR (Europejski Trybunał Praw Człowieka) case references:
+   - ALWAYS use format "skarga nr 00000/00"
+   ✓ CORRECT: "w sprawie Reczkowicz przeciwko Polsce (skarga nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
+   ✗ WRONG: "w sprawie Reczkowicz przeciwko Polsce (43447/19, §§ 59-70, 22 lipca 2021 r.)"
+   ✗ WRONG: "w sprawie Reczkowicz przeciwko Polsce (nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
+   - Format: "skarga nr [number]/[year]" (application number)
+
 CRITICAL RULES:
 1. Translate ONLY the source text provided above - nothing more, nothing less
 2. DO NOT add dates, facts, or events that are not in the source
