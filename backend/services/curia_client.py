@@ -19,6 +19,33 @@ class CURIAClient:
         self.enabled = settings.curia_enabled
         logger.info(f"CURIA Client initialized (enabled: {self.enabled})")
 
+    def _strip_articles(self, term: str) -> str:
+        """
+        Remove articles from the beginning of the term.
+
+        Terminology databases store terms WITHOUT articles:
+        - "intervener" not "the intervener"
+        - "applicant" not "an applicant"
+        - "court" not "a court"
+
+        Args:
+            term: Original term (may start with article)
+
+        Returns:
+            Term without leading article
+        """
+        articles = ['the ', 'a ', 'an ']
+        term_lower = term.lower()
+
+        for article in articles:
+            if term_lower.startswith(article):
+                # Remove article and preserve original casing of remaining text
+                stripped = term[len(article):]
+                logger.debug(f"Stripped article: '{term}' → '{stripped}'")
+                return stripped
+
+        return term
+
     async def search_term(
         self, term: str, max_results: int = 5
     ) -> List[Dict[str, Any]]:
@@ -37,13 +64,15 @@ class CURIAClient:
             return []
 
         try:
-            logger.info(f"Searching CURIA for term: {term}")
+            # CRITICAL: Strip articles before searching (databases don't include them)
+            search_term = self._strip_articles(term)
+            logger.info(f"Searching CURIA for term: '{term}' (normalized: '{search_term}')")
 
             # Uproszczone wyszukiwanie - w pełnej wersji używałby API CURIA
             # lub web scraping
-            results = await self._search_simple(term, max_results)
+            results = await self._search_simple(search_term, max_results)
 
-            logger.info(f"Found {len(results)} results in CURIA for '{term}'")
+            logger.info(f"Found {len(results)} results in CURIA for '{search_term}'")
             return results
 
         except Exception as e:

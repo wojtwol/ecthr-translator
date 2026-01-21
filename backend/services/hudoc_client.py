@@ -20,6 +20,33 @@ class HUDOCClient:
         self.enabled = settings.hudoc_enabled
         logger.info(f"HUDOC Client initialized (enabled: {self.enabled})")
 
+    def _strip_articles(self, term: str) -> str:
+        """
+        Remove articles from the beginning of the term.
+
+        Terminology databases store terms WITHOUT articles:
+        - "intervener" not "the intervener"
+        - "applicant" not "an applicant"
+        - "court" not "a court"
+
+        Args:
+            term: Original term (may start with article)
+
+        Returns:
+            Term without leading article
+        """
+        articles = ['the ', 'a ', 'an ']
+        term_lower = term.lower()
+
+        for article in articles:
+            if term_lower.startswith(article):
+                # Remove article and preserve original casing of remaining text
+                stripped = term[len(article):]
+                logger.debug(f"Stripped article: '{term}' → '{stripped}'")
+                return stripped
+
+        return term
+
     async def search_term(
         self, term: str, language: str = "ENG", max_results: int = 5
     ) -> List[Dict[str, Any]]:
@@ -39,13 +66,15 @@ class HUDOCClient:
             return []
 
         try:
-            logger.info(f"Searching HUDOC for term: {term}")
+            # CRITICAL: Strip articles before searching (databases don't include them)
+            search_term = self._strip_articles(term)
+            logger.info(f"Searching HUDOC for term: '{term}' (normalized: '{search_term}')")
 
             # Uproszczone wyszukiwanie - w pełnej wersji używałby API HUDOC
             # lub web scraping
-            results = await self._search_simple(term, language, max_results)
+            results = await self._search_simple(search_term, language, max_results)
 
-            logger.info(f"Found {len(results)} results in HUDOC for '{term}'")
+            logger.info(f"Found {len(results)} results in HUDOC for '{search_term}'")
             return results
 
         except Exception as e:

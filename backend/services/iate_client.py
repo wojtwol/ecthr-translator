@@ -36,7 +36,7 @@ class IATEClient:
 
         logger.info(f"IATE: Initialized (mock mode: {self.use_mock})")
 
-        # Mock data for fallback
+        # Mock data for fallback (stored WITHOUT articles)
         self._mock_terms = {
             "legal certainty": ("pewność prawa", 0.98, ["IATE:1234567"], "EU Law"),
             "proportionality": ("proporcjonalność", 0.99, ["IATE:2345678"], "EU Law"),
@@ -50,7 +50,37 @@ class IATEClient:
             "just satisfaction": ("słuszne zadośćuczynienie", 0.96, ["IATE:0123456"], "ECHR"),
             "data protection": ("ochrona danych", 0.99, ["IATE:1230456"], "EU Law"),
             "fundamental rights": ("prawa podstawowe", 0.98, ["IATE:2340567"], "EU Law"),
+            "intervener": ("interwenient", 0.96, ["IATE:3450678"], "Procedure"),
+            "applicant": ("skarżący", 0.97, ["IATE:4560789"], "Procedure"),
+            "respondent": ("pozwany", 0.97, ["IATE:5670890"], "Procedure"),
         }
+
+    def _strip_articles(self, term: str) -> str:
+        """
+        Remove articles from the beginning of the term.
+
+        Terminology databases store terms WITHOUT articles:
+        - "intervener" not "the intervener"
+        - "applicant" not "an applicant"
+        - "court" not "a court"
+
+        Args:
+            term: Original term (may start with article)
+
+        Returns:
+            Term without leading article
+        """
+        articles = ['the ', 'a ', 'an ']
+        term_lower = term.lower()
+
+        for article in articles:
+            if term_lower.startswith(article):
+                # Remove article and preserve original casing of remaining text
+                stripped = term[len(article):]
+                logger.debug(f"Stripped article: '{term}' → '{stripped}'")
+                return stripped
+
+        return term
 
     async def search_term(
         self,
@@ -75,40 +105,43 @@ class IATEClient:
         Returns:
             List of dictionaries with search results
         """
+        # CRITICAL: Strip articles before searching (IATE doesn't include them)
+        search_term = self._strip_articles(term)
+
         # Skip IATE search for long phrases (more than 5 words)
-        word_count = len(term.split())
+        word_count = len(search_term.split())
         if word_count > 5:
-            logger.info(f"IATE: Skipping search for long phrase '{term}' ({word_count} words). IATE works best with 1-5 word terms.")
+            logger.info(f"IATE: Skipping search for long phrase '{search_term}' ({word_count} words). IATE works best with 1-5 word terms.")
             return []
 
         if self.use_mock:
-            logger.info(f"IATE: Using mock data for term '{term}'")
-            translation, conf, ids, domain = self._search_mock(term)
+            logger.info(f"IATE: Using mock data for term '{term}' (normalized: '{search_term}')")
+            translation, conf, ids, domain = self._search_mock(search_term)
         else:
-            logger.info(f"IATE: Searching for term '{term}' ({source_lang} -> {target_lang})")
+            logger.info(f"IATE: Searching for term '{term}' (normalized: '{search_term}', {source_lang} -> {target_lang})")
             try:
                 # Try real search via public IATE API
-                translation, conf, ids, domain = await self._search_real(term, source_lang, target_lang)
+                translation, conf, ids, domain = await self._search_real(search_term, source_lang, target_lang)
                 if not translation:
                     # Fall back to mock if no results
-                    logger.warning(f"IATE: No results found for '{term}', using mock fallback")
-                    translation, conf, ids, domain = self._search_mock(term)
+                    logger.warning(f"IATE: No results found for '{search_term}', using mock fallback")
+                    translation, conf, ids, domain = self._search_mock(search_term)
             except Exception as e:
-                logger.error(f"IATE: Error searching for '{term}': {e}")
+                logger.error(f"IATE: Error searching for '{search_term}': {e}")
                 # Fall back to mock on error
-                translation, conf, ids, domain = self._search_mock(term)
+                translation, conf, ids, domain = self._search_mock(search_term)
 
         # Convert tuple result to list of dicts for compatibility
         results = []
         if translation:
             results.append({
                 "source": "iate",
-                "term_en": term,
+                "term_en": term,  # Keep original term for display
                 "term_pl": translation,
                 "confidence": conf,
                 "iate_ids": ids,
                 "domain": domain,
-                "url": f"https://iate.europa.eu/search/standard/{term}",
+                "url": f"https://iate.europa.eu/search/standard/{search_term}",  # Use normalized for URL
             })
 
         return results[:max_results]
