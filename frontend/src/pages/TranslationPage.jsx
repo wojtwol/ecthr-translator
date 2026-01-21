@@ -26,6 +26,7 @@ const TranslationPage = () => {
     updateTerm,
     applyTermToTranslation,
     refreshTerms,
+    refreshSegments,
   } = useTranslation(documentId);
 
   const [selectedTerm, setSelectedTerm] = useState(null);
@@ -855,6 +856,8 @@ const TranslationPage = () => {
                   segments={translatedSegments || []}
                   terms={terms}
                   onTermClick={handleTermSelect}
+                  documentId={documentId}
+                  onSegmentUpdate={refreshSegments}
                 />
               </div>
             )}

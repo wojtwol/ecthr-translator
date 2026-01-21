@@ -14,12 +14,18 @@ from models.document import (
     DocumentStatus,
 )
 from models.document_stats import DocumentStats
+from pydantic import BaseModel
 from db.database import get_db
 from db import models
 from config import settings
 from agents.format_handler import FormatHandler
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+class SegmentUpdate(BaseModel):
+    """Segment update request."""
+    target_text: str
 
 
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=201)
@@ -200,6 +206,7 @@ async def get_segments(document_id: str, db: Session = Depends(get_db)):
 
     return [
         {
+            "id": seg.id,
             "index": seg.index,
             "source_text": seg.source_text,
             "target_text": seg.target_text,
@@ -208,3 +215,49 @@ async def get_segments(document_id: str, db: Session = Depends(get_db)):
         }
         for seg in segments
     ]
+
+
+@router.put("/{document_id}/segments/{segment_id}")
+async def update_segment(
+    document_id: str,
+    segment_id: str,
+    update: SegmentUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update a translated segment manually.
+
+    Args:
+        document_id: Document ID
+        segment_id: Segment ID
+        update: Segment update data
+        db: Database session
+
+    Returns:
+        Updated segment data
+    """
+    # Find the segment
+    segment = db.query(models.Segment).filter(
+        models.Segment.id == segment_id,
+        models.Segment.document_id == document_id
+    ).first()
+
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+
+    # Update the target text
+    segment.target_text = update.target_text
+    segment.status = "edited"  # Mark as manually edited
+    segment.updated_at = datetime.now()
+
+    db.commit()
+    db.refresh(segment)
+
+    return {
+        "id": segment.id,
+        "index": segment.index,
+        "source_text": segment.source_text,
+        "target_text": segment.target_text,
+        "section_type": segment.section_type,
+        "status": segment.status,
+    }

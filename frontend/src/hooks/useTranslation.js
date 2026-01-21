@@ -45,6 +45,7 @@ export const useTranslation = (documentId) => {
 
       // Convert to translatedSegments format
       const formattedSegments = segments.map(seg => ({
+        id: seg.id,
         index: seg.index,
         source: seg.source_text,
         target: seg.target_text
@@ -411,5 +412,6 @@ export const useTranslation = (documentId) => {
     applyTermToTranslation,
     refreshTerms: fetchTerms,
     refreshDocument: fetchDocument,
+    refreshSegments: fetchSegments,
   };
 };

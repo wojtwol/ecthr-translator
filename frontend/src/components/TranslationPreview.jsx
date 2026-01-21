@@ -1,6 +1,54 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const TranslationPreview = ({ segments, terms, onTermClick }) => {
+const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmentUpdate }) => {
+  const [editingSegment, setEditingSegment] = useState(null);
+  const [editedText, setEditedText] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleDoubleClick = (segment) => {
+    if (!segment.id) return; // Can't edit without segment ID
+    setEditingSegment(segment);
+    setEditedText(segment.target || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSegment(null);
+    setEditedText('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSegment || !documentId) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/documents/${documentId}/segments/${editingSegment.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_text: editedText }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update segment');
+      }
+
+      // Notify parent component to refresh
+      if (onSegmentUpdate) {
+        await onSegmentUpdate();
+      }
+
+      setEditingSegment(null);
+      setEditedText('');
+    } catch (error) {
+      console.error('Failed to save segment:', error);
+      alert(`Nie udało się zapisać segmentu: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Highlight terms in a single segment's text
   const highlightTerms = (text, termsList, useSourceTerms = false) => {
     if (!text || !termsList || termsList.length === 0) {
@@ -132,14 +180,52 @@ const TranslationPreview = ({ segments, terms, onTermClick }) => {
               </div>
 
               {/* Target segment */}
-              <div className="border-b border-gray-200 p-4 bg-white">
-                <div className="text-sm text-gray-900">
-                  {segment.target ? (
-                    highlightTerms(segment.target, terms, false)
-                  ) : (
-                    <span className="text-gray-400 italic">Tłumaczenie w toku...</span>
-                  )}
-                </div>
+              <div
+                className="border-b border-gray-200 p-4 bg-white hover:bg-blue-50 transition-colors cursor-pointer group relative"
+                onDoubleClick={() => handleDoubleClick(segment)}
+                title="Kliknij dwukrotnie aby edytować"
+              >
+                {editingSegment && editingSegment.id === segment.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editedText}
+                      onChange={(e) => setEditedText(e.target.value)}
+                      className="w-full min-h-[100px] text-sm p-2 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                      >
+                        Anuluj
+                      </button>
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={saving || !editedText.trim()}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {saving ? 'Zapisuję...' : '✓ Zapisz'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-sm text-gray-900">
+                      {segment.target ? (
+                        highlightTerms(segment.target, terms, false)
+                      ) : (
+                        <span className="text-gray-400 italic">Tłumaczenie w toku...</span>
+                      )}
+                    </div>
+                    {segment.target && (
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-xs text-blue-600 font-medium">✎ Edytuj</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </React.Fragment>
           ))
