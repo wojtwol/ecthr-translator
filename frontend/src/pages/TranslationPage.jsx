@@ -810,8 +810,16 @@ const TranslationPage = () => {
             {(view === 'split' || view === 'preview') && (
               <div className={view === 'preview' ? 'max-w-4xl mx-auto w-full' : ''}>
                 <TranslationPreview
-                  sourceText={document?.source_text}
-                  translatedText={document?.translated_text}
+                  sourceText={
+                    translatedSegments.length > 0
+                      ? translatedSegments.map(seg => seg.source).join('\n\n')
+                      : document?.source_text
+                  }
+                  translatedText={
+                    translatedSegments.length > 0
+                      ? translatedSegments.map(seg => seg.target).join('\n\n')
+                      : document?.translated_text
+                  }
                   terms={terms}
                   onTermClick={handleTermSelect}
                 />
