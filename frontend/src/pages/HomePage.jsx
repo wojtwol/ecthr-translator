@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FileUpload from '../components/FileUpload';
-import TMUpload from '../components/TMUpload';
+import TMManager from '../components/TMManager';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -31,8 +31,8 @@ const HomePage = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-12">
         <div className="space-y-8">
-          {/* Translation Memory Upload */}
-          <TMUpload />
+          {/* Translation Memory Management */}
+          <TMManager />
 
           {/* File Upload */}
           <FileUpload onUploadSuccess={handleUploadSuccess} />
