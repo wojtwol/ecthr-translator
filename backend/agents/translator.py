@@ -135,6 +135,44 @@ relevantly similar situation - w istotny sposób podobna sytuacja
 re-opening of the proceedings – wznowienie postępowania
 Reports of Judgments and Decisions - Zbiór Wyroków i Decyzji
 
+=== STAŁE FORMUŁKI W WYROKACH ===
+
+NAGŁÓWEK WYROKU - wersja angielska:
+"The European Court of Human Rights (Fourth Section), sitting as a Chamber/a Grand Chamber composed of:
+n, President,
+nn, judges,
+and n, (Section) Registrar
+Having deliberated in private on,
+Delivers the following judgment, which was adopted on that date:"
+
+NAGŁÓWEK WYROKU - wersja polska:
+"Europejski Trybunał Praw Człowieka (czwarta sekcja), zasiadając jako Izba/Wielka Izba w składzie:
+n, Przewodniczący,
+nn, Sędziowie,
+oraz n, Kanclerz (Sekcji),
+obradując na posiedzeniu niejawnym w dniu n,
+wydaje następujący wyrok, który został przyjęty w tym dniu:"
+
+=== PRZYKŁADY TŁUMACZEŃ TYPOWYCH SFORMUŁOWAŃ ===
+
+"Convention is called to guarantee rights that are practical and effective, not theoretical and illusory"
+→ "Konwencja gwarantuje prawa, które są praktyczne i skuteczne, a nie teoretyczne i iluzoryczne"
+
+"The Court considers that the question ... is closely linked to the merits of the applicants' complaints. It therefore joins this preliminary issue (objection) to the merits."
+→ "Trybunał uważa, że kwestia ... jest ściśle powiązana z przedmiotem skargi. Trybunał rozpatrzy zatem tę kwestią wstępną (zastrzeżenie/sprzeciw) łącznie z przedmiotem skargi."
+
+"Article 1 of Protocol No. 1 does not include a right to acquire property. It places no restriction on the Contracting States' freedom to decide whether or not to have in place any form of social security scheme, or to choose the type or amount of benefits to provide under any such scheme. If, however, a State does decide to create a benefits or pension scheme, it must do so in a manner which is compatible with Article 14 of the Convention"
+→ "Art. 1 Protokołu nr 1 nie obejmuje prawa do nabycia własności. Nie nakłada on jakichkolwiek ograniczeń na swobodę Układających się Państw co do decyzji, czy ustanowić jakąkolwiek formę systemu zabezpieczenia społecznego, lub co do wyboru rodzaju lub kwoty świadczeń przyznawanych w ramach takiego systemu. Jeżeli jednak Państwo zdecyduje się ustanowić system świadczeń społecznych lub emerytalnych, musi zrobić to w sposób zgodny z art. 14 Konwencji"
+
+"although there was no obligation on a State under Article 1 of Protocol No. 1 to create a welfare or pension scheme, if a State did decide to enact legislation providing for the payment of a welfare benefit or pension as of right – whether conditional or not on previous contributions – that legislation had to be regarded as generating a proprietary interest falling within the ambit of Article 1 of Protocol No. 1 for persons satisfying its requirements"
+→ "chociaż art. 1 Protokołu nr 1 nie nakłada na Państwa obowiązku utworzenia systemu świadczeń społecznych lub emerytalnych, jeżeli Państwo zdecyduje się przyjąć ustawodawstwo przewidujące wypłatę świadczeń społecznych lub emerytalnych z mocy prawa – niezależnie od tego, czy wypłata ta jest zależna, czy nie, od uprzedniego uiszczania składek – ustawodawstwo to musi być uznane za tworzące interes majątkowy wchodzący w zakres zastosowania art. 1 Protokołu nr 1 dla osób spełniających wymogi przedmiotowego ustawodawstwa"
+
+"generating a proprietary interest falling within the ambit of Article 1"
+→ "tworzące interes majątkowy wchodzący w zakres zastosowania art. 1"
+
+"Article 1 of Protocol No. 1, the essential object of which is to protect the individual against unjustified interference by the State with the peaceful enjoyment of his or her possessions, may also entail positive obligations requiring the State to take certain measures necessary to protect the right of property, particularly where there is a direct link between the measures an applicant may legitimately expect from the authorities and his effective enjoyment of his possessions"
+→ "Art. 1 Protokołu nr 1, którego zasadniczym celem jest zapewnienie ochrony jednostki przed nieuzasadnioną ingerencją ze strony Państwa w prawo do poszanowania mienia, może także"
+
 === DANE DO TŁUMACZENIA ===
 
 Segment do tłumaczenia:
