@@ -11,7 +11,7 @@ from agents.translator import Translator
 from agents.change_implementer import ChangeImplementer
 from agents.qa_reviewer import QAReviewer
 from agents.citation_detector import CitationDetector
-from services.tm_manager import TMManager
+from services.multi_tm_manager import MultiTMManager  # New: Multi-TM support
 from services.curia_client import CURIAClient
 from config import settings
 
@@ -45,7 +45,7 @@ class Orchestrator:
         """Inicjalizacja Orchestrator."""
         self.format_handler = FormatHandler()
         self.structure_parser = StructureParser()
-        self.tm_manager = TMManager()
+        self.tm_manager = MultiTMManager()  # NEW: Multi-TM support
         self.term_extractor = TermExtractor()
         self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
@@ -58,14 +58,21 @@ class Orchestrator:
             self.citation_detector = CitationDetector()
             logger.info("Citation detection ENABLED (detection-only mode)")
 
-        # Załaduj TM jeśli istnieje
+        # Załaduj wszystkie TM z katalogu z automatycznymi priorytetami
         try:
-            count = self.tm_manager.load()
-            logger.info(f"Loaded {count} TM entries")
-        except Exception as e:
-            logger.warning(f"Could not load TM: {e}")
+            count = self.tm_manager.load_all_from_directory()
+            logger.info(f"Loaded {count} TM entries from {len(self.tm_manager.memories)} TM files")
 
-        logger.info("Orchestrator initialized with Sprint 5 agents + CJEU citation detection")
+            # Log TM stats
+            stats = self.tm_manager.get_stats()
+            logger.info(f"TM Stats: {stats['enabled_memories']}/{stats['total_memories']} enabled")
+            for tm_info in stats['memories']:
+                logger.info(f"  - {tm_info['name']}: priority={tm_info['priority']}, entries={tm_info['entries']}, enabled={tm_info['enabled']}")
+
+        except Exception as e:
+            logger.warning(f"Could not load TMs: {e}")
+
+        logger.info("Orchestrator initialized with Multi-TM support + CJEU citation detection")
 
     async def process(
         self, document_id: str, source_path: str
