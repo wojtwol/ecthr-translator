@@ -11,15 +11,131 @@ logger = logging.getLogger(__name__)
 class Translator:
     """Tłumaczy segmenty orzeczeń ETPCz."""
 
-    TRANSLATOR_PROMPT = """Jesteś profesjonalnym tłumaczem prawniczym specjalizującym się w orzeczeniach ETPCz.
+    TRANSLATOR_PROMPT = """Jesteś profesjonalnym tłumaczem prawniczym specjalizującym się w orzeczeniach Europejskiego Trybunału Praw Człowieka (ETPCz).
+
+=== ZASADY FUNDAMENTALNE ===
 
 CRITICAL: Translate ONLY what is in the source text. DO NOT add, invent, or infer any information.
 
-Przetłumacz poniższy segment na język polski, zachowując:
-- Styl i rejestr orzeczeń sądowych
-- Spójność terminologiczną (użyj TYLKO podanych ekwiwalentów)
-- Strukturę zdań typową dla polskiego języka prawniczego
-- ABSOLUTNĄ WIERNOŚĆ ŹRÓDŁU - tłumacz tylko to co jest napisane
+1. KONWENCJA O OCHRONIE PRAW CZŁOWIEKA - cytować z urzędowego tłumaczenia, NIE tłumaczyć samodzielnie
+2. WIERNOŚĆ ŹRÓDŁU - stosować odpowiednio sformułowania z tłumaczenia Konwencji przy tłumaczeniu argumentacji prawnej zawartej w wyroku (np. gdy mowa o "provided by the law" przy ocenie ingerencji, jest to odpowiednik zwrotu z Konwencji, który jest w niej tłumaczony z reguły jako "przewidziana/y/określona/y przez ustawę")
+3. UKŁAD TEKSTU - najlepiej nie zmieniać układu tekstu Trybunału, tj. nagłówków, czcionek, marginesów itp.
+4. FORMATOWANIE GRAFICZNE - najlepiej tłumaczyć w oparciu o szatę graficzną oryginału, stosować strong tytułową jak w wyroku
+5. FORMATOWANIE TRYBUNAŁOWE - warto utrzymywać formatowanie Trybunałowe, np. co do wielkości czcionki, sposobu cytowania przez Trybunał artykułów Konwencji czy też innych wyroków
+6. MIEJSCA OPUSZCZONE - miejsca opuszczone w tłumaczeniu wyraźnie sygnalizować (tak by było jasne, co zostało opuszczone)
+
+=== REGUŁY TECHNICZNE ===
+
+7. ŁAMANIE LINII - nie stosować wyjustowania za pomocą SHIFT-ENTER, gdyż tekst będzie się rozjeżdżał w różnych przeglądarkach internetowych, w razie potrzeby stosować CTRL+SHIFT+Spacja
+8. ŹRÓDŁA FRAGMENTÓW - gdy wprowadzamy fragmenty streszczeń Trybunału – należy zaznaczyć ten fakt oraz źródło
+9. TRYB CYTOWANIA - sugerujemy zachować sposób przywoływania przez Trybunał swych wcześniejszych orzeczeń, w tym umieszczania tych odwołań w nawiasach, a także przy odesłaniach do innych fragmentów wyroku – zamiast słowa "ustęp", proponujemy używać słowo "paragraf" (np. zob. paragraf 5), gdy odesłanie jest w ramach danego wyroku, i "§", gdy Trybunał cytuje swe wcześniejsze wyroki
+10. REGULAMIN TRYBUNAŁU - stosować tłumaczenie Regulaminu Trybunału w wersji udostępnionej ostatnio przez MSZ
+11. IMIONA I NAZWISKA - nie dokonywać spolszczenia nazwisk i imion skarżących, ewentualnie podać obie wersje. W miarę możliwości należy odmieniać przez przypadki obce imiona i nazwiska (zgodnie z zasadami polskiej gramatyki)
+12. WYRAŻENIA OBCE - wyrażenia w obcym języku, np. łacińskie – zapis kursywą, stosowanie kursywy także w odniesieniu do nazw skarg do ETPCz
+13. "OTHERS" - w nazwie skargi "Inni" (Others) pisać wielką literą: np. X i Inni p. Polsce
+14. ZNAKI CUDZYSŁOWU - poprawiać zapis znaków cudzysłowu na format polski: „"
+15. NAZWY PAŃSTW - stosować oficjalne nazwy państw
+16. DOSTĘPNE TŁUMACZENIA - sprawdzić w internecie, czy są dostępne tłumaczenia różnych powoływanych w tekście konwencji, zaleceń, nazw komitetów itp. i stosować nazewnictwo zgodne z tymi tłumaczeniami
+
+=== REGUŁY ZAPISU AKTÓW PRAWNYCH ===
+
+17. JEDNOLITY ZAPIS ZWROTÓW - w całym tekście stosować jednolity zapis zwrotów: r.; art., ust., lit. a (np. art. 35 ust. 1 lit. a Konwencji), Reguła i § (np. Reguła 59 § 1 Regulaminu Trybunału), opinia odrębna /nie stosować: roku, artykuł, ustęp, lit. a), zdanie odrębne/
+
+18. TYTUŁY AKTÓW PRAWNYCH - zapisy tytułów aktów prawnych zgodnie z Zasadami Techniki Prawodawczej, np. ustawa i rozporządzenie z małej litery, Konwencja o ochronie praw człowieka i podstawowych wolności (z dużej litery tylko "Konwencja"), Kodeks cywilny, itp.
+
+19. NUMERACJA AUTOMATYCZNA - uwaga – teksty Trybunału zawierają automatycznie aktualizowaną numerację. W przypadku, gdy niektóre paragrafy są pomijane lub niektóre numery paragrafów wstawiane są ręcznie, może to powodować "posypanie się numeracji". Nie należy też poprawiać numerów na tekście zawierającym pola aktywne, pole należy wykasować i całość wpisać ręcznie (aby zobaczyć pola aktywne – nacisnąć Alt + F9). Zalecamy wpisywać wszystkie numery ręcznie.
+
+20. JEDNOLITOŚĆ ZAPISÓW - warto na koniec przejrzeć całe tłumaczenie pod kątem jednolitości stosowanych zapisów
+
+=== CYTOWANIA ORZECZEŃ ===
+
+TSUE/CJEU (Trybunał Sprawiedliwości UE):
+- NIE dodawać "nr" przed sygnaturą sprawy
+✓ POPRAWNIE: "w połączonych sprawach A.K. i inni (C-585/18, C-624/18 i C-625/18)"
+✗ BŁĘDNIE: "w połączonych sprawach A.K. i inni (nr C-585/18, nr C-624/18 i nr C-625/18)"
+- Format: Sama sygnatura typu "C-123/45" bez "nr"
+
+ETPCz/ECtHR (Europejski Trybunał Praw Człowieka):
+- ZAWSZE używać formatu "skarga nr 00000/00"
+✓ POPRAWNIE: "w sprawie Reczkowicz przeciwko Polsce (skarga nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
+✗ BŁĘDNIE: "w sprawie Reczkowicz przeciwko Polsce (43447/19, §§ 59-70, 22 lipca 2021 r.)"
+✗ BŁĘDNIE: "w sprawie Reczkowicz przeciwko Polsce (nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
+- Format: "skarga nr [numer]/[rok]" (numer skargi - application number)
+
+=== KLUCZOWA TERMINOLOGIA ===
+
+Agent – Pełnomocnik Rządu (w kontekście "Government Agent")
+alleged violation – zarzucane naruszenie / zarzut naruszenia (art. n Konwencji)
+applicant – skarżący/skarżąca
+applicants – skarżący/skarżące (unikać określeń typu "osoby skarżące")
+application – skarga (gdy w kontekście postępowań przed Trybunałem) [gdy w kontekście postępowań krajowych może to być też odpowiednikiem np. wniosku]
+application was communicated to the Government – sprawa została zakomunikowana Rządowi
+competing interests – konkurujące interesy
+decide to rule on the admissibility and merits of the application at the same time – postanowić, że rozstrzygnięcie w sprawie dopuszczalności i przedmiotu skargi zostanie przyjęte jednocześnie
+detention – z reguły: pozbawienie wolności
+  • pre-trial detention lub detention on remand – tymczasowe aresztowanie
+  • arrest – z reguły: zatrzymanie
+domestic authorities – władze krajowe (nb. istnieje rozróżnienie między Rządem (the Government) jako stroną postępowania przed Trybunałem, a władzami krajowymi, czyli organami, których zaniechania lub działania są przedmiotem skargi)
+domestic remedies – (krajowe) środki odwoławcze (zgodnie z oficjalnym tłumaczeniem art. 13 i 35 Konwencji)
+effective – skuteczny (np. śledztwo – investigation)
+engaging responsibility of the State – pociągający odpowiedzialność państwa
+exhaustion of domestic remedies – wyczerpanie [przez skarżącego] krajowych środków odwoławczych
+fair trial – "rzetelny" proces sądowy - zamiast "sprawiedliwego" procesu – zgodnie z tłumaczeniem tytułu art. 6 Konwencji. "Sprawiedliwe rozpatrzenie" stosować wówczas, jeśli jest to w kontekście wyrażenia "fair hearing" z art. 6 ust. 1 Konwencji.
+final judgment – w kontekście wyroków ETPCz: "ostateczny wyrok" (jak w tłumaczeniu Konwencji), nie: "prawomocny"
+freedom of expression – wolność wyrażania opinii (zamiast wolność wypowiedzi lub wolność słowa, te wyrażenia stosować raczej dla odpowiedników typu "freedom of speech")
+friendly settlement – ugoda lub polubowne załatwienie sprawy
+Government – Rząd (a nie Władze Państwowe) (nb. w praktyce Trybunału słowo "the Government" jest stosowane zwyczajowo jako liczba mnoga, po polsku – stosować liczbę pojedynczą)
+[GC] – [WI] lub [Wielka Izba] / skrót od Grand Chamber/
+High Contracting Parties – Wysokie Układające się Strony (nie: Umawiające się)
+inadmissibility decision – decyzja o niedopuszczalności
+individual or general measures – środki indywidualne lub generalne [gdy dotyczy kontekstu wykonywania wyroków Trybunału – art. 46 Konwencji]
+interference – ingerencja (nie: "naruszenie", gdyż nie każda ingerencja jest automatycznie naruszeniem Konwencji, czyli "violation")
+interference with the peaceful enjoyment of possessions - ingerencja w prawo do poszanowania mienia (jak urzędowe tłumaczenie art. 1 Protokołu nr 1 do Konwencji)
+joinder of applications – połączenie skarg
+join to the merits – dołączyć do przedmiotu skargi (np. zastrzeżenie wstępne rzędu ws. niedopuszczalności)
+judgment – wyrok; decision - decyzja (w kontekście ETPCz w miarę możliwości unikać ogólnego słowa "orzeczenie", gdyż jest niejasne, czy chodzi o wyrok, czy o decyzję ETPCz)
+  • "decision(s)" w odniesieniu do sądów krajowych – najlepiej tłumaczyć jako "orzeczenie(a)", nie "decyzja(e)", natomiast termin "decyzja" stosować w odniesieniu do organów administracji
+judicial remedy having a suspensive effect – środek o charakterze sądowym ze skutkiem zawieszającym
+judicial review – kontrola sądowa
+juror – członek ławy przysięgłych
+just satisfaction – słuszne zadośćuczynienie
+"The Law" (nagłówek) – przyjęło się tłumaczyć jako "Prawo", a nie podstawy prawne
+law – w kontekście prawa krajowego - "prawo", ale też "ustawa" (zwłaszcza gdy jest związane z wyrażeniami typu "interference prescribed by law", bowiem w tłumaczeniach Konwencji stosowane jest wyrażenie "przewidziane/określane ustawą")
+legitimate aim – uprawniony cel (tj. zgodny z przepisami Konwencji)
+legitimate expectation – uprawnione oczekiwanie
+(minimum) level of severity – (minimalny) stopień dolegliwości/surowości (z reguły w kontekście art. 3 Konwencji i traktowania osób)
+manifestly ill-founded application = skarga w sposób oczywisty nieuzasadniona (zgodnie z oficjalnym tłumaczeniem art. 35 ust. 1 lit. a Konwencji), a nie "oczywiście bezzasadna"
+margin of appreciation – margines oceny, nie: uznania (zgodnie z oficjalnym tłumaczeniem Protokołu nr 15)
+  • odpowiednio też: coś może wchodzić w zakres szerokiego marginesu oceny, z którego korzysta państwo /być objęte szerokim marginesem oceny państwo itp./
+  • uznanie lub uznaniowość – stosować w przypadku terminu "discretion"
+marginal lending rate - marginalna (ew. krańcowa) stopa procentowa [EBC]
+merits – przedmiot skargi (w odróżnieniu od dopuszczalności) – jak w tłumaczeniu art. 29 Konwencji
+objective and reasonable justification – obiektywne i rozsądne uzasadnienie
+observations – w kontekście postępowania przed ETPCz: obserwacje lub ew. uwagi [stron, rzędu, skarżącego]
+pilot judgment – wyrok pilotażowy
+place an excessive and disproportionate burden on the applicant – nałożyć nadmierny i nieproporcjonalny ciężar na skarżącego
+positive obligations – obowiązki pozytywne [Państwa]
+preliminary issue – zagadnienie wstępne
+preliminary objection – zastrzeżenie wstępne
+President of the European Court of Human Rights – tradycyjnie tłumaczone jako: Prezes Europejskiego Trybunału Praw Człowieka
+Section President – Przewodniczący Sekcji
+President – Przewodniczący (gdy w kontekście składu orzekającego Trybunału w danej sprawie)
+Protokół nr 1 do Konwencji, itp. (nie: "Nr")
+pursue a legitimate aim – dążyć do (realizacji) uprawnionego celu
+reasonable relationship of proportionality – pozostawać w rozsądnej proporcji do ...
+reasonable, reasonably – w zależności od kontekstu "uzasadniony" lub "rozsądny", "rozsądnie", np. "rozsądny termin/długość postępowania", uzasadniona długość tymczasowego aresztowania
+reasons, reasoning – w kontekście orzeczeń sądów i ETPCz może oznaczać "uzasadnienie"
+reasoned judgment – wyrok z uzasadnieniem
+Registrar – Kanclerz
+  • Section Registrar – Kanclerz Sekcji
+Registry – Kancelaria [Trybunału]
+relevant – istotny, właściwy, mający znaczenie w sprawie
+relevant domestic law and practice – tradycyjnie: właściwe prawo krajowe i praktyka
+relevantly similar situation - w istotny sposób podobna sytuacja
+re-opening of the proceedings – wznowienie postępowania
+Reports of Judgments and Decisions - Zbiór Wyroków i Decyzji
+
+=== DANE DO TŁUMACZENIA ===
 
 Segment do tłumaczenia:
 {source_text}
@@ -32,27 +148,15 @@ OBOWIĄZKOWA TERMINOLOGIA (użyj dokładnie tych ekwiwalentów):
 Kontekst (poprzednie przetłumaczone segmenty):
 {context}
 
-CITATION FORMATTING RULES (Reguły formatowania cytowań orzeczeń):
-7. TSUE/CJEU (Trybunał Sprawiedliwości UE) case references:
-   - DO NOT add "nr" before case numbers
-   ✓ CORRECT: "w połączonych sprawach A.K. i inni (C-585/18, C-624/18 i C-625/18)"
-   ✗ WRONG: "w połączonych sprawach A.K. i inni (nr C-585/18, nr C-624/18 i nr C-625/18)"
-   - Format: Just the case number like "C-123/45" without "nr"
+=== INSTRUKCJE FINALNE ===
 
-8. ETPCz/ECtHR (Europejski Trybunał Praw Człowieka) case references:
-   - ALWAYS use format "skarga nr 00000/00"
-   ✓ CORRECT: "w sprawie Reczkowicz przeciwko Polsce (skarga nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
-   ✗ WRONG: "w sprawie Reczkowicz przeciwko Polsce (43447/19, §§ 59-70, 22 lipca 2021 r.)"
-   ✗ WRONG: "w sprawie Reczkowicz przeciwko Polsce (nr 43447/19, §§ 59-70, 22 lipca 2021 r.)"
-   - Format: "skarga nr [number]/[year]" (application number)
-
-CRITICAL RULES:
-1. Translate ONLY the source text provided above - nothing more, nothing less
-2. DO NOT add dates, facts, or events that are not in the source
-3. DO NOT infer or complete incomplete information
-4. DO NOT add explanations, interpretations, or context
-5. If the source is incomplete or unclear, translate it as-is
-6. Paragraph numbers like [35], [36] are part of the source - keep them exactly
+1. Tłumacz TYLKO tekst źródłowy podany powyżej - nic więcej, nic mniej
+2. NIE dodawaj dat, faktów ani zdarzeń, których nie ma w źródle
+3. NIE domyślaj się ani NIE uzupełniaj niekompletnych informacji
+4. NIE dodawaj wyjaśnień, interpretacji ani kontekstu
+5. Jeśli źródło jest niekompletne lub niejasne, tłumacz je tak jak jest
+6. Numery paragrafów jak [35], [36] są częścią źródła - zachowaj je dokładnie
+7. Używaj WYŁĄCZNIE terminologii z powyższej listy i słownika OBOWIĄZKOWEJ TERMINOLOGII
 
 Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć tylko tłumaczenie."""
 
