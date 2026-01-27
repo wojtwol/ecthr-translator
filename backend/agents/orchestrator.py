@@ -440,7 +440,7 @@ class Orchestrator:
                                 f"📥 Pobieram wyrok TSUE {case_number}..."
                             )
 
-                        # Fetch judgment from CURIA
+                        # Fetch judgment from CURIA with paragraph extraction
                         judgment = await self.curia_client.get_judgment_by_case_number(
                             case_number=case_number,
                             source_lang="EN",
@@ -448,10 +448,38 @@ class Orchestrator:
                         )
 
                         if judgment and judgment.get("available"):
-                            logger.info(f"Successfully fetched CJEU judgment {case_number} - will use as TM")
-                            # In full implementation: extract paragraphs and add to TM
-                            # For now: log success
-                            # TODO: Extract cited paragraphs and add to TM with highest priority
+                            paragraphs = judgment.get("paragraphs", {})
+
+                            if paragraphs:
+                                logger.info(f"Successfully fetched {len(paragraphs)} paragraphs from CJEU judgment {case_number}")
+
+                                # Add each paragraph to Translation Memory with HIGHEST priority
+                                # CJEU official translations have confidence 1.0 (same as exact TM match)
+                                for para_num, para_data in paragraphs.items():
+                                    text_en = para_data.get("en", "")
+                                    text_pl = para_data.get("pl", "")
+
+                                    if text_en and text_pl:
+                                        self.tm_manager.add_entry(
+                                            source=text_en,
+                                            target=text_pl,
+                                            metadata={
+                                                "source": "curia_citation",
+                                                "case_number": case_number,
+                                                "paragraph": para_num,
+                                                "confidence": 1.0,
+                                            }
+                                        )
+
+                                logger.info(f"Added {len(paragraphs)} CJEU paragraphs to TM with priority 1.0")
+
+                                if ws_manager:
+                                    await ws_manager.broadcast_progress(
+                                        document_id, "cjeu_tm_updated", 0.28 + (idx / len(cjeu_citations)) * 0.02,
+                                        f"✓ Dodano {len(paragraphs)} paragrafów z wyroku {case_number} do TM"
+                                    )
+                            else:
+                                logger.warning(f"No paragraphs extracted from CJEU judgment {case_number}")
                         else:
                             logger.warning(f"Could not fetch CJEU judgment {case_number}")
 

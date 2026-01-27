@@ -4,6 +4,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 import httpx
 import re
+from bs4 import BeautifulSoup
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -448,7 +449,7 @@ class CURIAClient:
         target_lang: str = "PL"
     ) -> Optional[Dict[str, Any]]:
         """
-        Pobiera wyrok TSUE przez web scraping.
+        Pobiera wyrok TSUE przez web scraping z ekstrakcją paragrafów.
 
         Args:
             case_number: Sygnatura sprawy (np. "C-487/19")
@@ -465,65 +466,214 @@ class CURIAClient:
         try:
             logger.info(f"Fetching CJEU judgment {case_number} ({source_lang} -> {target_lang})")
 
-            # CURIA URLs dla różnych języków
-            # Format: https://curia.europa.eu/juris/liste.jsf?num=C-487/19&language=pl
-            url_base = "https://curia.europa.eu/juris/liste.jsf"
+            # Step 1: Get judgment URLs for both languages
+            judgment_url_en = await self._get_judgment_url(case_number, source_lang)
+            judgment_url_pl = await self._get_judgment_url(case_number, target_lang)
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # Pobierz listę dokumentów dla tej sprawy
-                params = {
-                    "num": case_number,
-                    "language": target_lang.lower()
+            if not judgment_url_en or not judgment_url_pl:
+                logger.warning(f"Could not find judgment URLs for {case_number}")
+                return {
+                    "case_number": case_number,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "available": False,
+                    "paragraphs": {},
                 }
 
-                response = await client.get(url_base, params=params)
-                response.raise_for_status()
+            # Step 2: Extract paragraphs from both versions
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # Fetch EN version
+                response_en = await client.get(judgment_url_en)
+                response_en.raise_for_status()
+                paragraphs_en = self._extract_paragraphs_from_html(response_en.text, source_lang)
 
-                # Parsowanie prostsze - zwróć URL do tłumaczenia
-                # W pełnej implementacji użyłbyś BeautifulSoup do parsowania HTML
-                # i wyodrębnienia paragrafów
+                # Fetch PL version
+                response_pl = await client.get(judgment_url_pl)
+                response_pl.raise_for_status()
+                paragraphs_pl = self._extract_paragraphs_from_html(response_pl.text, target_lang)
+
+                # Step 3: Align EN-PL paragraphs
+                aligned_paragraphs = self._align_paragraphs(paragraphs_en, paragraphs_pl)
+
+                logger.info(f"Successfully extracted {len(aligned_paragraphs)} aligned paragraphs from {case_number}")
 
                 result = {
                     "case_number": case_number,
                     "source_lang": source_lang,
                     "target_lang": target_lang,
-                    "url": response.url,
-                    "paragraphs": [],  # W pełnej wersji: lista {para_num, text_en, text_pl}
-                    "available": response.status_code == 200,
+                    "url_en": judgment_url_en,
+                    "url_pl": judgment_url_pl,
+                    "paragraphs": aligned_paragraphs,  # {para_num: {"en": text_en, "pl": text_pl}}
+                    "available": True,
                 }
 
-                logger.info(f"Successfully fetched judgment {case_number}")
                 return result
 
         except Exception as e:
-            logger.error(f"Error fetching CJEU judgment {case_number}: {e}")
+            logger.error(f"Error fetching CJEU judgment {case_number}: {e}", exc_info=True)
             return None
+
+    async def _get_judgment_url(self, case_number: str, language: str) -> Optional[str]:
+        """
+        Znajduje URL do pełnego tekstu wyroku dla danego języka.
+
+        Args:
+            case_number: Sygnatura sprawy
+            language: Kod języka (EN, PL)
+
+        Returns:
+            URL do wyroku lub None
+        """
+        try:
+            url_base = "https://curia.europa.eu/juris/liste.jsf"
+            params = {
+                "num": case_number,
+                "language": language.lower()
+            }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url_base, params=params)
+                response.raise_for_status()
+
+                # Parse HTML to find link to full judgment text
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # CURIA typically has links with class "publication" or similar
+                # This is a simplified approach - may need adjustment based on actual HTML structure
+                links = soup.find_all('a', href=True)
+
+                for link in links:
+                    href = link['href']
+                    # Look for document viewer links
+                    if 'document' in href.lower() and 'celex' in href.lower():
+                        # Build full URL
+                        if href.startswith('http'):
+                            return href
+                        else:
+                            return f"https://curia.europa.eu{href}"
+
+                logger.warning(f"Could not find judgment document link for {case_number} in {language}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error getting judgment URL: {e}")
+            return None
+
+    def _extract_paragraphs_from_html(self, html: str, language: str) -> Dict[int, str]:
+        """
+        Ekstrahuje paragrafy z HTML wyroku CURIA.
+
+        Args:
+            html: HTML content
+            language: Kod języka
+
+        Returns:
+            Słownik {para_number: text}
+        """
+        paragraphs = {}
+
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+
+            # CURIA typically marks paragraphs with numbers
+            # Look for patterns like "114 " at the beginning of paragraphs
+            # This is simplified - actual structure may vary
+
+            # Find all paragraph elements
+            for p in soup.find_all(['p', 'div']):
+                text = p.get_text(strip=True)
+
+                # Try to extract paragraph number from beginning
+                # Format: "114 Text of paragraph..."
+                match = re.match(r'^(\d{1,4})\s+(.+)$', text)
+
+                if match:
+                    para_num = int(match.group(1))
+                    para_text = match.group(2)
+
+                    if len(para_text) > 20:  # Minimum length to avoid false positives
+                        paragraphs[para_num] = para_text
+
+            logger.info(f"Extracted {len(paragraphs)} paragraphs from {language} version")
+
+        except Exception as e:
+            logger.error(f"Error extracting paragraphs: {e}")
+
+        return paragraphs
+
+    def _align_paragraphs(
+        self,
+        paragraphs_en: Dict[int, str],
+        paragraphs_pl: Dict[int, str]
+    ) -> Dict[int, Dict[str, str]]:
+        """
+        Wyrównuje paragrafy EN-PL na podstawie numeracji.
+
+        Args:
+            paragraphs_en: Paragrafy EN {num: text}
+            paragraphs_pl: Paragrafy PL {num: text}
+
+        Returns:
+            Wyrównane paragrafy {num: {"en": text_en, "pl": text_pl}}
+        """
+        aligned = {}
+
+        # Find common paragraph numbers
+        common_nums = set(paragraphs_en.keys()) & set(paragraphs_pl.keys())
+
+        for num in sorted(common_nums):
+            aligned[num] = {
+                "en": paragraphs_en[num],
+                "pl": paragraphs_pl[num]
+            }
+
+        logger.info(f"Aligned {len(aligned)} paragraphs (EN: {len(paragraphs_en)}, PL: {len(paragraphs_pl)})")
+
+        return aligned
 
     async def extract_judgment_paragraphs(
         self,
         case_number: str,
-        paragraph_numbers: List[int]
+        paragraph_numbers: List[int] = None
     ) -> Dict[int, Tuple[str, str]]:
         """
         Ekstrahuje konkretne paragrafy z wyroku TSUE (EN i PL).
 
         Args:
             case_number: Sygnatura sprawy
-            paragraph_numbers: Lista numerów paragrafów do wyekstrakcji
+            paragraph_numbers: Lista numerów paragrafów do wyekstrakcji (None = all)
 
         Returns:
             Słownik {para_num: (text_en, text_pl)}
         """
-        # W pełnej implementacji:
-        # 1. Pobierz wyrok w EN
-        # 2. Pobierz wyrok w PL
-        # 3. Wyekstrahuj konkretne paragrafy
-        # 4. Zwróć je jako pary EN-PL
+        logger.info(f"Extracting paragraphs {paragraph_numbers or 'all'} from {case_number}")
 
-        logger.info(f"Extracting paragraphs {paragraph_numbers} from {case_number}")
+        # Fetch full judgment with all paragraphs
+        judgment = await self.get_judgment_by_case_number(case_number)
 
-        # Placeholder - zwróć puste
-        return {}
+        if not judgment or not judgment.get("available"):
+            logger.warning(f"Judgment {case_number} not available")
+            return {}
+
+        paragraphs = judgment.get("paragraphs", {})
+
+        # Filter to specific paragraph numbers if requested
+        if paragraph_numbers:
+            filtered = {
+                num: (paragraphs[num]["en"], paragraphs[num]["pl"])
+                for num in paragraph_numbers
+                if num in paragraphs
+            }
+            logger.info(f"Extracted {len(filtered)}/{len(paragraph_numbers)} requested paragraphs")
+            return filtered
+        else:
+            # Return all paragraphs
+            result = {
+                num: (data["en"], data["pl"])
+                for num, data in paragraphs.items()
+            }
+            logger.info(f"Extracted all {len(result)} paragraphs")
+            return result
 
     def get_stats(self) -> Dict[str, Any]:
         """
