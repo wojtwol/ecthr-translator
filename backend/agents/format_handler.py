@@ -22,7 +22,69 @@ def get_citation_detector():
 
 
 class FormatHandler:
-    """Handles DOCX format extraction and reconstruction."""
+    """Handles DOCX format extraction and reconstruction with ECtHR formatting guidelines."""
+
+    def _clean_and_format_text(self, text: str) -> str:
+        """
+        Czyści i formatuje tekst zgodnie z wytycznymi ETPCz.
+
+        Stosuje:
+        1. Eliminuje podwójne/potrójne spacje
+        2. Usuwa spacje przed interpunkcją
+        3. Stosuje twarde spacje przy sierotach (jednoliterowe spójniki, jednostki)
+        4. Zamienia niepoprawne cudzysłowy na polskie
+        5. Zamienia łączniki na półpauzy w przedziałach liczbowych
+
+        Args:
+            text: Tekst do wyczyszczenia
+
+        Returns:
+            Wyczyszczony tekst z twardymi spacjami
+        """
+        import re
+
+        if not text:
+            return text
+
+        # 1. Usuń podwójne/potrójne spacje
+        text = re.sub(r'\s{2,}', ' ', text)
+
+        # 2. Usuń spacje przed interpunkcją
+        text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+
+        # 3. Zamień niepoprawne cudzysłowy na polskie
+        text = text.replace('"', '„')
+        text = text.replace('"', '"')
+        text = text.replace('"', '"')  # Czasem druga para to "
+
+        # 4. Zamień łączniki na półpauzy w przedziałach liczbowych
+        # §§ 34-45 → §§ 34–45
+        text = re.sub(r'(§§?\s*\d+)-(\d+)', r'\1–\2', text)
+        # art. 5-8 → art. 5–8
+        text = re.sub(r'(art\.\s*\d+)-(\d+)', r'\1–\2', text)
+        # paragrafy 10-15 → paragrafy 10–15
+        text = re.sub(r'(paragraf[ya]?\s+\d+)-(\d+)', r'\1–\2', text)
+
+        # 5. Twarde spacje przy sierotach
+        # Twarda spacja w Unicode: \u00A0 (non-breaking space)
+        NBSP = '\u00A0'
+
+        # Jednoliterowe spójniki: i, w, z, o, a, u (na końcu słowa lub na początku)
+        for conjuction in ['i', 'w', 'z', 'o', 'a', 'u']:
+            # Na początku: "w sprawie" → "w\u00A0sprawie"
+            text = re.sub(rf'\b{conjuction}\s+', f'{conjuction}{NBSP}', text)
+
+        # Jednostki i skróty: r., §, art., ust., lit., nr, zob.
+        for unit in ['r\\.', '§', 'art\\.', 'ust\\.', 'lit\\.', 'nr', 'zob\\.', 'par\\.']:
+            # Przed jednostką: "2020 r." → "2020\u00A0r."
+            text = re.sub(rf'(\d+)\s+{unit}', rf'\1{NBSP}{unit}', text)
+            # Po jednostce: "art. 5" → "art.\u00A05"
+            text = re.sub(rf'{unit}\s+', f'{unit.replace("\\\\.", ".")}{NBSP}', text)
+
+        # Liczby przed jednostkami: "5 marca" → "5\u00A0marca"
+        text = re.sub(r'(\d+)\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia|dni|miesięcy|lat|roku)', rf'\1{NBSP}\2', text)
+
+        return text
 
     def extract(self, source_path: str) -> Dict[str, Any]:
         """
@@ -135,8 +197,10 @@ class FormatHandler:
                 parent_type = segment.get("parent_type", "paragraph")
 
                 if parent_type == "paragraph":
+                    # Wyczyść i sformatuj tekst zgodnie z wytycznymi ETPCz
+                    cleaned_text = self._clean_and_format_text(translated_text)
                     para = doc.add_paragraph()
-                    para.text = translated_text
+                    para.text = cleaned_text
                     self._apply_paragraph_format(para, segment.get("format", {}), has_citations=has_citations)
 
                 elif parent_type == "table_cell":
@@ -176,9 +240,11 @@ class FormatHandler:
                     if row < len(table.rows) and col < len(table.rows[row].cells):
                         cell = table.rows[row].cells[col]
                         # Clear existing paragraphs and add new one with proper formatting
+                        # Wyczyść i sformatuj tekst zgodnie z wytycznymi ETPCz
+                        cleaned_text = self._clean_and_format_text(translated_text)
                         cell.text = ""
                         para = cell.paragraphs[0]
-                        para.text = translated_text
+                        para.text = cleaned_text
                         if has_citations:
                             # Apply citation color to table cell text
                             for run in para.runs:

@@ -15,10 +15,17 @@ _case_law_researcher = None
 class TermExtractor:
     """Ekstrahuje terminy prawnicze z segmentów."""
 
-    TERM_EXTRACTOR_PROMPT = """Jesteś ekspertem w terminologii prawniczej ETPCz.
+    TERM_EXTRACTOR_PROMPT = """Jesteś ekspertem w terminologii prawniczej ETPCz z głęboką znajomością Europejskiej Konwencji Praw Człowieka (EKPC).
+
+=== ZASADY FUNDAMENTALNE ===
 
 CRITICAL: Extract and suggest translations ONLY for terms that are actually present in the segment.
 DO NOT invent, add, or infer any terms or context that are not in the source text.
+
+1. SPÓJNOŚĆ TERMINOLOGICZNA - jeden termin źródłowy = jeden ekwiwalent docelowy
+2. PRIORYTET EKPC - stosuj terminologię z oficjalnego tłumaczenia Konwencji
+3. WYKRYWANIE WARIANTÓW - flaguj niespójności terminologiczne
+4. UTARTE FORMUŁY - rozpoznawaj standardowe sformułowania ETPCz
 
 Przeanalizuj poniższy segment orzeczenia ETPCz i zidentyfikuj wszystkie terminy prawnicze,
 które wymagają spójnego tłumaczenia:
@@ -32,6 +39,23 @@ Znane terminy z pamięci tłumaczeniowej:
 {known_terms}
 
 Zidentyfikuj NOWE terminy (nie obecne w pamięci tłumaczeniowej) i zaproponuj polskie ekwiwalenty.
+
+=== PRIORYTETY EKSTRAKCJI ===
+
+Skup się na (w kolejności ważności):
+1. TERMINOLOGIA EKPC - terminy z Konwencji mają najwyższy priorytet
+2. Terminy specyficzne dla ETPCz (margin of appreciation, just satisfaction, etc.)
+3. Terminy proceduralne (applicant, respondent Government, etc.)
+4. Nazwy artykułów Konwencji i Protokołów
+5. Łacińskie maksymy prawnicze
+6. PEŁNE nazwy sądów i instytucji
+
+=== ODNIESIENIA DO AKTÓW PRAWNYCH ===
+
+Wykrywaj i standaryzuj odniesienia:
+- EKPC: użyj formatu "art. X ust. Y Konwencji" (nie "§")
+- Regulamin: użyj formatu "Reguła X § Y Regulaminu Trybunału"
+- Paragrafy: "paragraf X" (nie "ustęp", nie "punkt")
 
 Skup się na:
 - Terminach specyficznych dla ETPCz (margin of appreciation, just satisfaction, etc.)

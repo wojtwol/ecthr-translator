@@ -173,6 +173,132 @@ wydaje następujący wyrok, który został przyjęty w tym dniu:"
 "Article 1 of Protocol No. 1, the essential object of which is to protect the individual against unjustified interference by the State with the peaceful enjoyment of his or her possessions, may also entail positive obligations requiring the State to take certain measures necessary to protect the right of property, particularly where there is a direct link between the measures an applicant may legitimately expect from the authorities and his effective enjoyment of his possessions"
 → "Art. 1 Protokołu nr 1, którego zasadniczym celem jest zapewnienie ochrony jednostki przed nieuzasadnioną ingerencją ze strony Państwa w prawo do poszanowania mienia, może także"
 
+=== ODNIESIENIA DO AKTÓW PRAWNYCH ===
+
+EKPC (Europejska Konwencja Praw Człowieka):
+- Format: `art. 8 ust. 1 Konwencji` (stosuj „ust." nie „§")
+- Przykład: "art. 6 ust. 1 Konwencji", "art. 35 ust. 1 lit. a Konwencji"
+
+Regulamin Trybunału:
+- Format: `Reguła 77 § 1 Regulaminu Trybunału` (stosuj „§")
+- Przykład: "Reguła 59 § 1 Regulaminu Trybunału"
+
+Paragrafy w tekście:
+- Paragrafy przedmiotowego wyroku: pisz słownie `paragraf 34`
+- Paragrafy przywoływanego wyroku: stosuj symbol `§ 34`
+- Odmiana: `paragraf 34`, ale `paragrafy 34 i 45`
+- Przykłady:
+  - "jak wskazano w paragrafie 34 powyżej"
+  - "Trybunał orzekł w sprawie X przeciwko Y (§§ 45-50)"
+
+=== GRAMATYKA I SKŁADNIA ===
+
+1. SZYK ZDANIA - stosuj szyk postpozycyjny:
+   ✓ POPRAWNIE: "Trybunał stwierdził zatem"
+   ✗ BŁĘDNIE: "Zatem Trybunał stwierdził"
+
+2. FORMY BEZOSOBOWE zamiast strony biernej:
+   ✓ POPRAWNIE: "wskazano", "stwierdzono", "rozpatrzono"
+   ✗ BŁĘDNIE: "został wskazany", "został stwierdzony"
+
+3. UNIKAJ "w przypadku, gdy" – stosuj alternatywy:
+   - "jeżeli", "gdy", "kiedy"
+
+4. STOSUJ "tylko wtedy, gdy" zamiast "tylko jeśli"
+
+5. UWAGA na słowo "domniemany" – częsty błąd tłumaczeniowy:
+   - "alleged" = "zarzucany", "domniemany" tylko gdy faktycznie chodzi o domniemanie
+
+6. ODMIANA W NAWIASACH - zachowaj mianownik:
+   ✓ POPRAWNIE: („Konwencja"), („Rząd"), (dalej: „skarżący")
+   ✗ BŁĘDNIE: („Konwencji"), („rządowi"), (dalej: „skarżącego")
+
+7. ODMIANA OBCYCH IMION I NAZWISK:
+   - Odmiana przez przypadki zgodnie z polską gramatyką
+   - "wniosek Johna Smitha", "sprawa dotycząca Anny Kowalskiej"
+
+8. SPÓJNOŚĆ PŁCI:
+   - Konsekwentnie: `skarżący/skarżąca`, `skarżących/skarżące`
+   - Zgodnie z płcią: "obu skarżących" lub "obojga skarżących"
+
+9. JEDNOZNACZNOŚĆ ODNIESIEŃ:
+   - Gdy tekst używa zaimków "sąd" lub "trybunał", upewnij się że jasno wynika, czy chodzi o sąd krajowy czy Trybunał
+   - Przy wątpliwościach: precyzuj "sąd krajowy" lub "Trybunał"
+
+=== INTERPUNKCJA ===
+
+1. PRZECINKI:
+   - Przecinki otwierające i zamykające zdanie podrzędne (przed "że", "który", "aby")
+   - Brak przecinków po okolicznikach rozpoczynających zdanie:
+     ✓ "W niniejszej sprawie Trybunał stwierdził"
+     ✗ "W niniejszej sprawie, Trybunał stwierdził"
+   - Po "mając na uwadze" kontynuuj od małej litery:
+     "Trybunał, mając na uwadze powyższe okoliczności, stwierdził"
+
+2. PÓŁPAUZA vs ŁĄCZNIK:
+   - Półpauza ( – ) w przedziałach liczbowych: "§§ 34–45", "art. 5–8"
+   - Półpauza jako myślnik: "Trybunał – mając na uwadze – stwierdził"
+   - Łącznik (-) tylko w wyrazach złożonych: "art.-ust."
+
+3. POLSKIE ZNAKI CYTATU:
+   ✓ POPRAWNIE: „tekst", „ »tekst w tekście« "
+   ✗ BŁĘDNIE: "tekst", "tekst w tekście"
+
+4. ELIMINUJ:
+   - Zbędne przecinki (zwłaszcza błędy z TM)
+   - Dwukropki tam gdzie powinny być średniki lub przecinki
+   - Zbędne łączniki
+
+=== FORMATOWANIE ===
+
+1. SPACJE:
+   - Usuwaj zbędne spacje przed interpunkcją: "tekst ." → "tekst."
+   - Usuwaj podwójne/potrójne spacje
+   - Sprawdzaj brak spacji: "paragraf40" → "paragraf 40"
+
+2. SKRÓTY na początku zdania:
+   - Rozwijaj: "Artykuł 5", "Zobacz paragraf 34"
+   - W środku zdania: "art. 5", "zob. paragraf 34"
+   - Stosuj "zob. także" nie "zob. również"
+
+3. KURSYWA:
+   - Nazwy wyroków: pisz kursywą (Doe przeciwko Roe)
+   - Zwroty łacińskie: pisz kursywą (inter alia, mutatis mutandis)
+
+4. SIEROTY - eliminuj używając twardych spacji (Alt+Shift+Space lub Ctrl+Shift+Space):
+   - Jednoliterowe spójniki: `i `, `w `, `z `, `o `
+   - Jednostki: `r.`, `§`, `art.`, `ust.`
+   - Liczby: `5 marca`, `34 dni`
+
+5. WERYFIKUJ formatowanie:
+   - Akapit "Izba w składzie" na stronie tytułowej
+   - Koniec dokumentu
+   - Numery paragrafów ([1], [2], [3])
+
+=== KONTROLA JAKOŚCI ===
+
+1. UWAGA NA POMINIĘCIA:
+   - Weryfikuj czy nie pominięto fragmentów tekstu
+   - Sprawdzaj długość tłumaczenia vs oryginału
+
+2. UWAGA NA ZMIANY ZNACZENIA z fuzzy matches:
+   - "prawa karnego" zamiast "prawa cywilnego"
+   - Weryfikuj kontekst przy dopasowaniach >95%
+
+3. USUWAJ zbędny tekst z Tradosa:
+   - Błędne daty: "w dniu niedziela, 5 marca 2023 r."
+   - Metadane TM
+   - Znaczniki formatowania
+
+4. WERYFIKUJ wyniki z TM:
+   - Mogą zawierać błędy interpunkcyjne
+   - Mogą mieć niespójną terminologię
+   - Sprawdzaj spójność z resztą dokumentu
+
+5. SPÓJNOŚĆ TERMINOLOGICZNA:
+   - Jeden termin źródłowy = jeden ekwiwalent docelowy w całym dokumencie
+   - Weryfikuj spójność tabelki terminologicznej ze stroną tytułową z całym tekstem
+
 === DANE DO TŁUMACZENIA ===
 
 Segment do tłumaczenia:
