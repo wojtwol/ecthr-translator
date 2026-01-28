@@ -108,10 +108,30 @@ async def upload_tm_file(
     # Generate unique name
     tm_name = f"uploaded_{uuid.uuid4().hex[:8]}_{Path(file.filename).stem}"
 
-    # Save file
+    # Save file with chunk-based reading and size validation
     file_path = settings.tm_path / f"{tm_name}.tmx"
-    content = await file.read()
-    file_path.write_bytes(content)
+    file_size = 0
+    chunk_size = 1024 * 1024  # 1MB chunks
+    max_size = settings.max_tmx_size_mb * 1024 * 1024  # Convert MB to bytes
+
+    try:
+        with open(file_path, 'wb') as buffer:
+            while chunk := await file.read(chunk_size):
+                file_size += len(chunk)
+                if file_size > max_size:
+                    # Clean up partial file
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {settings.max_tmx_size_mb}MB, uploaded: {file_size / (1024 * 1024):.2f}MB"
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Clean up on any error
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
     # Add to TM Manager
     success = tm_manager.add_tm(
@@ -135,7 +155,8 @@ async def upload_tm_file(
         "enabled": tm.enabled,
         "entries_count": len(tm.entries),
         "file_path": tm.file_path,
-        "message": f"Successfully uploaded TM with {len(tm.entries)} entries"
+        "file_size_mb": round(file_size / (1024 * 1024), 2),
+        "message": f"Successfully uploaded TM with {len(tm.entries)} entries ({file_size / (1024 * 1024):.2f}MB)"
     }
 
 
