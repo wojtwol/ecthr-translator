@@ -401,9 +401,9 @@ Keep your response concise (max 2 sentences)."""
                     QAIssue(
                         severity="warning",
                         category="punctuation",
-                        description=f"Segment {i+1}: Używaj polskich znaków cytatu „" zamiast \"\"",
+                        description=f'Segment {i+1}: Używaj polskich znaków cytatu „" zamiast ""',
                         segment_index=i,
-                        suggestion="Zamień cudzysłowy na polskie: „tekst"",
+                        suggestion='Zamień cudzysłowy na polskie: „tekst"',
                     )
                 )
 
