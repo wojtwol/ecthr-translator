@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from config import settings
-from routers import documents, translation, glossary, websocket, tm
+from routers import documents, translation, glossary, websocket, tm_management
 from db.database import init_db
 
 # Configure logging
@@ -27,7 +27,14 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*",
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://ecthr-translator-n99j3xpxx-wojteks-projects-a85f52e4.vercel.app",
+        # Allow all Vercel preview and production URLs
+        "https://*.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +44,7 @@ app.add_middleware(
 app.include_router(documents.router, prefix="/api")
 app.include_router(translation.router, prefix="/api")
 app.include_router(glossary.router, prefix="/api")
-app.include_router(tm.router, prefix="/api")
+app.include_router(tm_management.router, prefix="/api")
 app.include_router(websocket.router)
 
 
