@@ -31,10 +31,9 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:5173",
         "https://ecthr-translator-n99j3xpxx-wojteks-projects-a85f52e4.vercel.app",
-        # Allow all Vercel preview and production URLs
-        "https://*.vercel.app",
+        "https://ecthr-translator-7j8pomy95-wojteks-projects-a85f52e4.vercel.app",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://ecthr-translator-[a-z0-9]+-wojteks-projects-[a-z0-9]+\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
