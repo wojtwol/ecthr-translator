@@ -105,11 +105,12 @@ async def upload_tm_file(
             detail="Invalid file format. Only .tmx and .tbx files are allowed."
         )
 
-    # Generate unique name
+    # Generate unique name and preserve file extension
+    original_ext = Path(file.filename).suffix  # .tmx or .tbx
     tm_name = f"uploaded_{uuid.uuid4().hex[:8]}_{Path(file.filename).stem}"
 
     # Save file with chunk-based reading and size validation
-    file_path = settings.tm_path / f"{tm_name}.tmx"
+    file_path = settings.tm_path / f"{tm_name}{original_ext}"
     file_size = 0
     chunk_size = 1024 * 1024  # 1MB chunks
     max_size = settings.max_tmx_size_mb * 1024 * 1024  # Convert MB to bytes

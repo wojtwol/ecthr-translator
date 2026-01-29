@@ -298,7 +298,7 @@ class MultiTMManager:
 
     def load_all_from_directory(self) -> int:
         """
-        Ładuje wszystkie pliki TMX z katalogu z automatycznym priorytetem.
+        Ładuje wszystkie pliki TMX i TBX z katalogu z automatycznym priorytetem.
 
         Priority assignment:
         - Files matching 'legal_*', 'court_*' → priority 1 (highest)
@@ -314,15 +314,16 @@ class MultiTMManager:
             logger.warning(f"TM directory does not exist: {self.tm_path}")
             return 0
 
-        tmx_files = list(self.tm_path.glob("*.tmx"))
+        # Load both TMX and TBX files
+        tm_files = list(self.tm_path.glob("*.tmx")) + list(self.tm_path.glob("*.tbx"))
 
-        if not tmx_files:
-            logger.warning(f"No TMX files found in {self.tm_path}")
+        if not tm_files:
+            logger.warning(f"No TMX/TBX files found in {self.tm_path}")
             return 0
 
         total_loaded = 0
 
-        for file_path in tmx_files:
+        for file_path in tm_files:
             # Determine priority based on filename
             filename = file_path.stem.lower()
 
@@ -355,7 +356,7 @@ class MultiTMManager:
 
     def _load_tm_file(self, tm: TranslationMemory) -> int:
         """
-        Ładuje wpisy z pliku TMX do TM.
+        Ładuje wpisy z pliku TMX lub TBX do TM.
 
         Args:
             tm: TranslationMemory object
@@ -366,61 +367,150 @@ class MultiTMManager:
         file_path = Path(tm.file_path)
 
         if not file_path.exists():
-            logger.warning(f"TMX file not found: {file_path}")
+            logger.warning(f"TM file not found: {file_path}")
             return 0
+
+        # Determine file type
+        is_tbx = file_path.suffix.lower() == '.tbx'
 
         try:
             tree = etree.parse(str(file_path))
             root = tree.getroot()
 
-            count = 0
-            for tu in root.findall(".//tu"):
-                tuvs = tu.findall("tuv")
-                if len(tuvs) < 2:
-                    continue
-
-                # Find EN and PL entries
-                source_tuv = None
-                target_tuv = None
-
-                for tuv in tuvs:
-                    lang = tuv.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
-                    if "en" in lang:
-                        source_tuv = tuv
-                    elif "pl" in lang:
-                        target_tuv = tuv
-
-                if source_tuv is not None and target_tuv is not None:
-                    source_seg = source_tuv.find("seg")
-                    target_seg = target_tuv.find("seg")
-
-                    if (
-                        source_seg is not None
-                        and target_seg is not None
-                        and source_seg.text
-                        and target_seg.text
-                    ):
-                        # Extract metadata
-                        metadata = {}
-                        for prop in tu.findall("prop"):
-                            prop_type = prop.get("type")
-                            if prop_type and prop.text:
-                                metadata[prop_type] = prop.text
-
-                        entry = TMEntry(
-                            source=source_seg.text.strip(),
-                            target=target_seg.text.strip(),
-                            metadata=metadata,
-                            tm_name=tm.name
-                        )
-                        tm.entries.append(entry)
-                        count += 1
-
-            return count
+            if is_tbx:
+                return self._parse_tbx(tm, root)
+            else:
+                return self._parse_tmx(tm, root)
 
         except Exception as e:
-            logger.error(f"Error loading TMX file {file_path}: {e}")
+            logger.error(f"Error loading TM file {file_path}: {e}")
             return 0
+
+    def _parse_tmx(self, tm: TranslationMemory, root) -> int:
+        """
+        Parsuje plik TMX.
+
+        Args:
+            tm: TranslationMemory object
+            root: XML root element
+
+        Returns:
+            Liczba załadowanych wpisów
+        """
+        count = 0
+        for tu in root.findall(".//tu"):
+            tuvs = tu.findall("tuv")
+            if len(tuvs) < 2:
+                continue
+
+            # Find EN and PL entries
+            source_tuv = None
+            target_tuv = None
+
+            for tuv in tuvs:
+                lang = tuv.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
+                if "en" in lang:
+                    source_tuv = tuv
+                elif "pl" in lang:
+                    target_tuv = tuv
+
+            if source_tuv is not None and target_tuv is not None:
+                source_seg = source_tuv.find("seg")
+                target_seg = target_tuv.find("seg")
+
+                if (
+                    source_seg is not None
+                    and target_seg is not None
+                    and source_seg.text
+                    and target_seg.text
+                ):
+                    # Extract metadata
+                    metadata = {}
+                    for prop in tu.findall("prop"):
+                        prop_type = prop.get("type")
+                        if prop_type and prop.text:
+                            metadata[prop_type] = prop.text
+
+                    entry = TMEntry(
+                        source=source_seg.text.strip(),
+                        target=target_seg.text.strip(),
+                        metadata=metadata,
+                        tm_name=tm.name
+                    )
+                    tm.entries.append(entry)
+                    count += 1
+
+        return count
+
+    def _parse_tbx(self, tm: TranslationMemory, root) -> int:
+        """
+        Parsuje plik TBX (TermBase eXchange).
+
+        Format TBX:
+        <termEntry>
+          <langSet xml:lang="en">
+            <tig>
+              <term>English term</term>
+            </tig>
+          </langSet>
+          <langSet xml:lang="pl">
+            <tig>
+              <term>Polish term</term>
+            </tig>
+          </langSet>
+        </termEntry>
+
+        Args:
+            tm: TranslationMemory object
+            root: XML root element
+
+        Returns:
+            Liczba załadowanych wpisów
+        """
+        count = 0
+
+        for term_entry in root.findall(".//{*}termEntry"):
+            # Find language sets
+            source_term = None
+            target_term = None
+            metadata = {}
+
+            # Extract metadata from termEntry level
+            for descrip in term_entry.findall(".//{*}descrip"):
+                descrip_type = descrip.get("type")
+                if descrip_type and descrip.text:
+                    metadata[descrip_type] = descrip.text
+
+            # Find language sets
+            for lang_set in term_entry.findall(".//{*}langSet"):
+                lang = lang_set.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
+
+                # Find term within tig or ntig
+                term_elem = lang_set.find(".//{*}tig/{*}term")
+                if term_elem is None:
+                    term_elem = lang_set.find(".//{*}ntig/{*}termGrp/{*}term")
+                if term_elem is None:
+                    term_elem = lang_set.find(".//{*}term")
+
+                if term_elem is not None and term_elem.text:
+                    if "en" in lang:
+                        source_term = term_elem.text.strip()
+                    elif "pl" in lang:
+                        target_term = term_elem.text.strip()
+
+            # Add entry if both languages found
+            if source_term and target_term:
+                entry = TMEntry(
+                    source=source_term,
+                    target=target_term,
+                    metadata=metadata,
+                    tm_name=tm.name
+                )
+                tm.entries.append(entry)
+                count += 1
+
+        logger.info(f"Parsed TBX file: {count} term entries")
+        return count
 
     def save_tm(self, tm_name: str, output_path: Optional[str] = None) -> bool:
         """
