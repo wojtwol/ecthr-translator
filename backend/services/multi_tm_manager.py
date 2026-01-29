@@ -446,19 +446,17 @@ class MultiTMManager:
         """
         Parsuje plik TBX (TermBase eXchange).
 
-        Format TBX:
-        <termEntry>
-          <langSet xml:lang="en">
-            <tig>
-              <term>English term</term>
-            </tig>
-          </langSet>
-          <langSet xml:lang="pl">
-            <tig>
-              <term>Polish term</term>
-            </tig>
-          </langSet>
-        </termEntry>
+        Format TBX może mieć różne struktury:
+        1. Podstawowy TBX:
+           <termEntry>
+             <langSet xml:lang="en"><tig><term>English term</term></tig></langSet>
+             <langSet xml:lang="pl"><tig><term>Polish term</term></tig></langSet>
+           </termEntry>
+
+        2. SDL MultiTerm TBX:
+           <conceptEntry>
+             <languageEntry><termEntry><term>English term</term></termEntry></languageEntry>
+           </conceptEntry>
 
         Args:
             tm: TranslationMemory object
@@ -469,8 +467,14 @@ class MultiTMManager:
         """
         count = 0
 
-        for term_entry in root.findall(".//{*}termEntry"):
-            # Find language sets
+        # Log root element info for debugging
+        logger.info(f"TBX root element: {root.tag}, children: {len(list(root))}")
+
+        # Try standard TBX format first
+        term_entries = root.findall(".//{*}termEntry")
+        logger.info(f"Found {len(term_entries)} termEntry elements")
+
+        for term_entry in term_entries:
             source_term = None
             target_term = None
             metadata = {}
@@ -482,8 +486,18 @@ class MultiTMManager:
                     metadata[descrip_type] = descrip.text
 
             # Find language sets
-            for lang_set in term_entry.findall(".//{*}langSet"):
-                lang = lang_set.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
+            lang_sets = term_entry.findall(".//{*}langSet")
+            logger.debug(f"termEntry has {len(lang_sets)} langSet elements")
+
+            for lang_set in lang_sets:
+                # Try different lang attribute formats
+                lang = (
+                    lang_set.get("{http://www.w3.org/XML/1998/namespace}lang") or
+                    lang_set.get("lang") or
+                    ""
+                ).lower()
+
+                logger.debug(f"langSet lang attribute: '{lang}'")
 
                 # Find term within tig or ntig
                 term_elem = lang_set.find(".//{*}tig/{*}term")
@@ -493,10 +507,13 @@ class MultiTMManager:
                     term_elem = lang_set.find(".//{*}term")
 
                 if term_elem is not None and term_elem.text:
-                    if "en" in lang:
-                        source_term = term_elem.text.strip()
+                    term_text = term_elem.text.strip()
+                    logger.debug(f"Found term '{term_text}' for lang '{lang}'")
+
+                    if "en" in lang or lang == "en-gb" or lang == "en-us":
+                        source_term = term_text
                     elif "pl" in lang:
-                        target_term = term_elem.text.strip()
+                        target_term = term_text
 
             # Add entry if both languages found
             if source_term and target_term:
@@ -508,6 +525,19 @@ class MultiTMManager:
                 )
                 tm.entries.append(entry)
                 count += 1
+                logger.debug(f"Added TBX entry: '{source_term}' -> '{target_term}'")
+            else:
+                logger.warning(f"Incomplete termEntry: source={source_term}, target={target_term}")
+
+        # If no entries found, try SDL MultiTerm format
+        if count == 0:
+            logger.info("No entries in standard TBX format, trying SDL MultiTerm format")
+            concept_entries = root.findall(".//{*}conceptEntry")
+            logger.info(f"Found {len(concept_entries)} conceptEntry elements")
+
+            # Try to extract first few entries to see structure
+            for i, concept in enumerate(concept_entries[:3]):
+                logger.info(f"Sample conceptEntry {i}: {etree.tostring(concept, encoding='unicode')[:200]}")
 
         logger.info(f"Parsed TBX file: {count} term entries")
         return count

@@ -6,9 +6,12 @@ from typing import List, Optional
 from pydantic import BaseModel
 from pathlib import Path
 import uuid
+import logging
 
 from services.multi_tm_manager import MultiTMManager
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tm", tags=["translation-memory"])
 
@@ -98,6 +101,8 @@ async def upload_tm_file(
     Returns:
         Info o dodanej TM
     """
+    logger.info(f"TM upload request received: filename={file.filename}, content_type={file.content_type}")
+
     # Validate file extension
     if not file.filename.endswith(('.tmx', '.tbx')):
         raise HTTPException(
@@ -109,6 +114,8 @@ async def upload_tm_file(
     original_ext = Path(file.filename).suffix  # .tmx or .tbx
     tm_name = f"uploaded_{uuid.uuid4().hex[:8]}_{Path(file.filename).stem}"
 
+    logger.info(f"Saving TM as: {tm_name}{original_ext}, priority={priority}, enabled={enabled}")
+
     # Save file with chunk-based reading and size validation
     file_path = settings.tm_path / f"{tm_name}{original_ext}"
     file_size = 0
@@ -116,22 +123,32 @@ async def upload_tm_file(
     max_size = settings.max_tmx_size_mb * 1024 * 1024  # Convert MB to bytes
 
     try:
+        logger.info(f"Starting chunk-based file save, max size: {settings.max_tmx_size_mb}MB")
         with open(file_path, 'wb') as buffer:
+            chunk_count = 0
             while chunk := await file.read(chunk_size):
+                chunk_count += 1
                 file_size += len(chunk)
+                if chunk_count % 10 == 0:  # Log every 10MB
+                    logger.info(f"Uploaded {file_size / (1024 * 1024):.2f}MB ({chunk_count} chunks)")
+
                 if file_size > max_size:
                     # Clean up partial file
                     file_path.unlink(missing_ok=True)
+                    logger.error(f"File too large: {file_size / (1024 * 1024):.2f}MB > {settings.max_tmx_size_mb}MB")
                     raise HTTPException(
                         status_code=413,
                         detail=f"File too large. Maximum size: {settings.max_tmx_size_mb}MB, uploaded: {file_size / (1024 * 1024):.2f}MB"
                     )
                 buffer.write(chunk)
+
+        logger.info(f"File saved successfully: {file_size / (1024 * 1024):.2f}MB ({chunk_count} chunks)")
     except HTTPException:
         raise
     except Exception as e:
         # Clean up on any error
         file_path.unlink(missing_ok=True)
+        logger.error(f"Error saving file: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
     # Add to TM Manager
