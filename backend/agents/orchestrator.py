@@ -52,14 +52,24 @@ class Orchestrator:
         self.qa_reviewer = QAReviewer()
         self.curia_client = CURIAClient()
 
+        # Lazy loading flag for TM
+        self._tm_loaded = False
+
         # Citation detector (optional, controlled by feature flag)
         self.citation_detector = None
         if settings.enable_citation_detection:
             self.citation_detector = CitationDetector()
             logger.info("Citation detection ENABLED (detection-only mode)")
 
-        # Załaduj wszystkie TM z katalogu z automatycznymi priorytetami
+        logger.info("Orchestrator initialized with Multi-TM support + CJEU citation detection (lazy TM loading)")
+
+    def _ensure_tm_loaded(self):
+        """Lazy load TM entries on first use to save memory during early phases."""
+        if self._tm_loaded:
+            return
+
         try:
+            logger.info("Lazy loading Translation Memories...")
             count = self.tm_manager.load_all_from_directory()
             logger.info(f"Loaded {count} TM entries from {len(self.tm_manager.memories)} TM files")
 
@@ -69,10 +79,9 @@ class Orchestrator:
             for tm_info in stats['memories']:
                 logger.info(f"  - {tm_info['name']}: priority={tm_info['priority']}, entries={tm_info['entries']}, enabled={tm_info['enabled']}")
 
+            self._tm_loaded = True
         except Exception as e:
             logger.warning(f"Could not load TMs: {e}")
-
-        logger.info("Orchestrator initialized with Multi-TM support + CJEU citation detection")
 
     async def process(
         self, document_id: str, source_path: str
@@ -108,6 +117,9 @@ class Orchestrator:
             # Faza 2: Analiza struktury
             logger.info("Phase 2: Parsing structure")
             parsed_segments = await self.structure_parser.parse(segments)
+
+            # Lazy load TM before Phase 3 (first use)
+            self._ensure_tm_loaded()
 
             # Faza 3: Ekstrakcja terminów
             logger.info("Phase 3: Extracting terms")
@@ -239,6 +251,9 @@ class Orchestrator:
                 )
 
             parsed_segments = await self.structure_parser.parse(all_segments)
+
+            # Lazy load TM before using it
+            self._ensure_tm_loaded()
 
             # Przygotuj znane terminy z TM
             known_terms = []
@@ -501,6 +516,9 @@ class Orchestrator:
             except Exception as e:
                 logger.warning(f"CJEU citation processing failed (non-critical): {e}")
                 # Continue with normal flow
+
+            # Lazy load TM before Phase 3
+            self._ensure_tm_loaded()
 
             # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
             logger.info("Phase 3: Loading terminology from TM + optional case law databases")
@@ -777,6 +795,9 @@ class Orchestrator:
         Returns:
             Słownik ze statystykami
         """
+        # Ensure TM is loaded before getting stats
+        self._ensure_tm_loaded()
+
         stats = {
             "tm_stats": self.tm_manager.get_stats(),
             "agents": {
