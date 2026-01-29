@@ -374,73 +374,113 @@ class MultiTMManager:
         is_tbx = file_path.suffix.lower() == '.tbx'
 
         try:
-            tree = etree.parse(str(file_path))
-            root = tree.getroot()
-
             if is_tbx:
+                # TBX files are usually small, use DOM parser
+                tree = etree.parse(str(file_path))
+                root = tree.getroot()
                 return self._parse_tbx(tm, root)
             else:
-                return self._parse_tmx(tm, root)
+                # TMX files can be large, use streaming parser
+                return self._parse_tmx_streaming(tm)
 
         except Exception as e:
             logger.error(f"Error loading TM file {file_path}: {e}")
             return 0
 
-    def _parse_tmx(self, tm: TranslationMemory, root) -> int:
+    def _parse_tmx_streaming(self, tm: TranslationMemory) -> int:
         """
-        Parsuje plik TMX.
+        Parsuje plik TMX używając streaming parser (memory-efficient).
+        Używa iterparse() który parsuje element po elemencie bez ładowania
+        całego drzewa XML do pamięci.
 
         Args:
             tm: TranslationMemory object
-            root: XML root element
 
         Returns:
             Liczba załadowanych wpisów
         """
+        file_path = Path(tm.file_path)
         count = 0
-        for tu in root.findall(".//tu"):
-            tuvs = tu.findall("tuv")
-            if len(tuvs) < 2:
-                continue
 
-            # Find EN and PL entries
-            source_tuv = None
-            target_tuv = None
+        logger.info(f"Starting streaming TMX parse for {file_path.name}")
 
-            for tuv in tuvs:
-                lang = tuv.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
-                if "en" in lang:
-                    source_tuv = tuv
-                elif "pl" in lang:
-                    target_tuv = tuv
+        try:
+            # Use iterparse for memory-efficient streaming parsing
+            # This parses element by element without loading entire tree into memory
+            context = etree.iterparse(
+                str(file_path),
+                events=('end',),
+                tag='tu',  # Only trigger on <tu> elements
+                recover=True  # Handle malformed XML gracefully
+            )
 
-            if source_tuv is not None and target_tuv is not None:
-                source_seg = source_tuv.find("seg")
-                target_seg = target_tuv.find("seg")
+            for event, tu in context:
+                try:
+                    tuvs = tu.findall("tuv")
+                    if len(tuvs) < 2:
+                        tu.clear()
+                        continue
 
-                if (
-                    source_seg is not None
-                    and target_seg is not None
-                    and source_seg.text
-                    and target_seg.text
-                ):
-                    # Extract metadata
-                    metadata = {}
-                    for prop in tu.findall("prop"):
-                        prop_type = prop.get("type")
-                        if prop_type and prop.text:
-                            metadata[prop_type] = prop.text
+                    # Find EN and PL entries
+                    source_tuv = None
+                    target_tuv = None
 
-                    entry = TMEntry(
-                        source=source_seg.text.strip(),
-                        target=target_seg.text.strip(),
-                        metadata=metadata,
-                        tm_name=tm.name
-                    )
-                    tm.entries.append(entry)
-                    count += 1
+                    for tuv in tuvs:
+                        lang = tuv.get("{http://www.w3.org/XML/1998/namespace}lang", "").lower()
+                        if "en" in lang:
+                            source_tuv = tuv
+                        elif "pl" in lang:
+                            target_tuv = tuv
 
-        return count
+                    if source_tuv is not None and target_tuv is not None:
+                        source_seg = source_tuv.find("seg")
+                        target_seg = target_tuv.find("seg")
+
+                        if (
+                            source_seg is not None
+                            and target_seg is not None
+                            and source_seg.text
+                            and target_seg.text
+                        ):
+                            # Extract metadata
+                            metadata = {}
+                            for prop in tu.findall("prop"):
+                                prop_type = prop.get("type")
+                                if prop_type and prop.text:
+                                    metadata[prop_type] = prop.text
+
+                            entry = TMEntry(
+                                source=source_seg.text.strip(),
+                                target=target_seg.text.strip(),
+                                metadata=metadata,
+                                tm_name=tm.name
+                            )
+                            tm.entries.append(entry)
+                            count += 1
+
+                            # Log progress every 10000 entries
+                            if count % 10000 == 0:
+                                logger.info(f"Parsed {count} TMX entries...")
+
+                except Exception as e:
+                    logger.warning(f"Error parsing TMX <tu> element: {e}")
+
+                finally:
+                    # CRITICAL: Clear element from memory immediately after processing
+                    tu.clear()
+                    # Also eliminate now-empty references from the root
+                    while tu.getprevious() is not None:
+                        del tu.getparent()[0]
+
+            # Clear the context
+            del context
+
+            logger.info(f"Completed streaming TMX parse: {count} entries")
+            return count
+
+        except Exception as e:
+            logger.error(f"Error in streaming TMX parse: {e}", exc_info=True)
+            return count  # Return what we parsed so far
 
     def _parse_tbx(self, tm: TranslationMemory, root) -> int:
         """
