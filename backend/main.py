@@ -24,14 +24,14 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS - Allow all Vercel preview deployments
+# Configure CORS - Allow all Vercel deployments
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
     ],
-    allow_origin_regex=r"https://ecthr-translator-[a-z0-9]+-wojteks-projects-a85f52e4\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
