@@ -504,7 +504,7 @@ async def _run_translation(
 
         job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
         if job:
-            job.status = TranslationJobStatus.FAILED
+            job.status = TranslationJobStatus.ERROR
             job.error_message = str(e)
             job.completed_at = datetime.now()
 
@@ -617,7 +617,7 @@ async def _run_finalization(job_id: str, document_id: str, db: Session):
 
         job = db.query(models.TranslationJob).filter(models.TranslationJob.id == job_id).first()
         if job:
-            job.status = TranslationJobStatus.FAILED
+            job.status = TranslationJobStatus.ERROR
             job.error_message = str(e)
             job.completed_at = datetime.now()
 

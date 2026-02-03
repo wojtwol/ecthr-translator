@@ -660,7 +660,7 @@ class Orchestrator:
 
             # Zapisz zaktualizowaną TM
             tm_filename = f"tm_updated_{document_id}.tmx"
-            self.tm_manager.save(tm_filename)
+            self.tm_manager.save_tm("default", tm_filename)
 
             logger.info(
                 f"Quick translation completed: {output_path}, "
@@ -758,7 +758,7 @@ class Orchestrator:
 
             # Zapisz zaktualizowaną TM
             tm_filename = f"tm_updated_{document_id}.tmx"
-            self.tm_manager.save(tm_filename)
+            self.tm_manager.save_tm("default", tm_filename)
 
             logger.info(
                 f"Translation finalized successfully: {output_path}, "
