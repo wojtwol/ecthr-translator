@@ -4,7 +4,7 @@ services:
     env: python
     region: frankfurt
     plan: free
-    branch: claude/verify-hudoc-curia-search-6IhI3
+    branch: claude/fix-translation-download-OMtCe
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
