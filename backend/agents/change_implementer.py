@@ -170,6 +170,18 @@ CRITICAL RULES:
 5. If the source is incomplete or unclear, translate it as-is
 6. Paragraph numbers like [35], [36] are part of the source - keep them exactly
 
+ECHR TERMINOLOGY RULES:
+- Registrar = Kanclerz (NEVER "Sekretarz")
+- Section Registrar = Kanclerz Sekcji (NEVER "Sekretarz Sekcji")
+- Registry = Kancelaria Trybunału
+- Use Polish quotation marks: „..." (opening „ U+201E, closing " U+201D)
+- Polish court names use proper capitalization and prepositions:
+  District Court = Sąd Rejonowy (both capitalized)
+  "District Court of Warsaw-Śródmieście" = "Sąd Rejonowy dla Warszawy-Śródmieścia"
+  "Regional Court" = "Sąd Okręgowy"
+  "Court of Appeal" = "Sąd Apelacyjny"
+  "Supreme Court" = "Sąd Najwyższy"
+
 IMPORTANT: Return ONLY the Polish translation, without any explanations or notes."""
 
             response = self.client.messages.create(

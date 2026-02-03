@@ -269,6 +269,25 @@ class HUDOCClient:
                 "confidence": 0.95,
             },
 
+            "section registrar": {
+                "en": "Section Registrar",
+                "pl": "Kanclerz Sekcji",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
+            "registrar": {
+                "en": "Registrar",
+                "pl": "Kanclerz",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
+            "registry": {
+                "en": "Registry",
+                "pl": "Kancelaria Trybunału",
+                "cases": ["Various cases"],
+                "confidence": 1.0,
+            },
+
             # Single word terms (lower priority)
             "applicant": {
                 "en": "applicant",

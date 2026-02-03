@@ -52,10 +52,20 @@ class FormatHandler:
         # 2. Usuń spacje przed interpunkcją
         text = re.sub(r'\s+([.,;:!?])', r'\1', text)
 
-        # 3. Zamień niepoprawne cudzysłowy na polskie
-        text = text.replace('"', '„')
-        text = text.replace('"', '"')
-        text = text.replace('"', '"')  # Czasem druga para to "
+        # 3. Zamień cudzysłowy na poprawne polskie pary „..."
+        # Normalize all quote variants to ASCII "
+        for qch in ['\u201c', '\u201d', '\u201e', '\u201f']:
+            text = text.replace(qch, '"')
+        # Alternate: odd = opening „ (U+201E), even = closing " (U+201D)
+        parts = text.split('"')
+        if len(parts) > 1:
+            result = parts[0]
+            for idx, part in enumerate(parts[1:], 1):
+                if idx % 2 == 1:
+                    result += '\u201e' + part  # „ opening
+                else:
+                    result += '\u201d' + part  # " closing
+            text = result
 
         # 4. Zamień łączniki na półpauzy w przedziałach liczbowych
         # §§ 34-45 → §§ 34–45
@@ -75,11 +85,16 @@ class FormatHandler:
             text = re.sub(rf'\b{conjuction}\s+', f'{conjuction}{NBSP}', text)
 
         # Jednostki i skróty: r., §, art., ust., lit., nr, zob.
-        for unit in ['r\\.', '§', 'art\\.', 'ust\\.', 'lit\\.', 'nr', 'zob\\.', 'par\\.']:
+        # regex_pattern → display_form (to avoid backslash leaking into output)
+        units = [
+            ('r\\.', 'r.'), ('§', '§'), ('art\\.', 'art.'), ('ust\\.', 'ust.'),
+            ('lit\\.', 'lit.'), ('nr', 'nr'), ('zob\\.', 'zob.'), ('par\\.', 'par.'),
+        ]
+        for regex_unit, display_unit in units:
             # Przed jednostką: "2020 r." → "2020\u00A0r."
-            text = re.sub(rf'(\d+)\s+{unit}', rf'\1{NBSP}{unit}', text)
+            text = re.sub(rf'(\d+)\s+{regex_unit}', lambda m: f'{m.group(1)}{NBSP}{display_unit}', text)
             # Po jednostce: "art. 5" → "art.\u00A05"
-            text = re.sub(rf'{unit}\s+', f'{unit.replace("\\\\.", ".")}{NBSP}', text)
+            text = re.sub(rf'{regex_unit}\s+', f'{display_unit}{NBSP}', text)
 
         # Liczby przed jednostkami: "5 marca" → "5\u00A0marca"
         text = re.sub(r'(\d+)\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia|dni|miesięcy|lat|roku)', rf'\1{NBSP}\2', text)
