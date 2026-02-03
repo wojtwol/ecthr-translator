@@ -225,6 +225,23 @@ Paragrafy w tekście:
    - Gdy tekst używa zaimków "sąd" lub "trybunał", upewnij się że jasno wynika, czy chodzi o sąd krajowy czy Trybunał
    - Przy wątpliwościach: precyzuj "sąd krajowy" lub "Trybunał"
 
+10. POWTÓRZENIE SŁOWA ZAMIAST ZAIMKA:
+   - W przypadku zbyt dużego oddalenia zaimka „który" od określanego słowa, powtórz określane słowo, aby uniknąć błędu składniowego i zmiany sensu
+   ✓ POPRAWNIE: "Trybunał zbadał wyrok sądu okręgowego, który to wyrok został wydany..."
+   ✗ BŁĘDNIE: "Trybunał zbadał wyrok sądu okręgowego, który został wydany..." (niejasne: sąd czy wyrok?)
+
+11. PRZECINEK W WYRAŻENIACH PRZYIMKOWYCH:
+   - NIE stawiamy przecinka wewnątrz wyrażenia przyimkowego rozpoczynającego zdanie, lecz po całym zdaniu składowym
+   ✓ POPRAWNIE: "W przypadku gdy skarga jest niedopuszczalna, Trybunał wydaje decyzję."
+   ✗ BŁĘDNIE: "W przypadku, gdy skarga jest niedopuszczalna, Trybunał wydaje decyzję."
+   - Dotyczy: "w przypadku gdy", "w sytuacji gdy", "w razie gdy", "pod warunkiem że"
+
+12. NAZWY SĄDÓW KRAJOWYCH:
+   - Zachowuj oficjalne polskie nazwy sądów z oryginału (nie tłumacz z powrotem z angielskiego)
+   - Wielkie litery: "Sąd Rejonowy", "Sąd Okręgowy", "Sąd Apelacyjny", "Sąd Najwyższy"
+   - Nazwy konkretnych sądów mogą zawierać przyimek "dla" lub "w": "Sąd Rejonowy dla Warszawy-Śródmieścia", "Sąd Okręgowy w Krakowie"
+   - NIE stosuj szablonowej reguły - sprawdź oficjalną nazwę danego sądu
+
 === INTERPUNKCJA ===
 
 1. PRZECINKI:

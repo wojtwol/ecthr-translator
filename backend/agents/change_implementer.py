@@ -174,13 +174,17 @@ ECHR TERMINOLOGY RULES:
 - Registrar = Kanclerz (NEVER "Sekretarz")
 - Section Registrar = Kanclerz Sekcji (NEVER "Sekretarz Sekcji")
 - Registry = Kancelaria Trybunału
+- alleged violation = zarzucane naruszenie / zarzut naruszenia (NEVER "domniemane naruszenie")
 - Use Polish quotation marks: „..." (opening „ U+201E, closing " U+201D)
-- Polish court names use proper capitalization and prepositions:
-  District Court = Sąd Rejonowy (both capitalized)
-  "District Court of Warsaw-Śródmieście" = "Sąd Rejonowy dla Warszawy-Śródmieścia"
-  "Regional Court" = "Sąd Okręgowy"
-  "Court of Appeal" = "Sąd Apelacyjny"
-  "Supreme Court" = "Sąd Najwyższy"
+- Defined terms in parentheses: nominative case with capital letter, e.g. („Konwencja"), („Rząd")
+- EKPC references: use "ust." NOT "§" (e.g. art. 8 ust. 1 Konwencji)
+- Regulamin references: use "§" (e.g. Reguła 77 § 1 Regulaminu Trybunału)
+- Paragraphs of current judgment: spell out "paragraf" (e.g. paragraf 34)
+- Paragraphs of cited judgments: use "§" symbol (e.g. § 34)
+- Polish court names: use official names with proper capitalization
+  (names may include "dla" or "w" depending on the specific court)
+- Do NOT put a comma inside prepositional phrases starting a sentence:
+  ✓ "W przypadku gdy..." ✗ "W przypadku, gdy..."
 
 IMPORTANT: Return ONLY the Polish translation, without any explanations or notes."""
 
