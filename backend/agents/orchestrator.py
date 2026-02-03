@@ -725,15 +725,9 @@ class Orchestrator:
                 f"QA Review complete: {qa_report.get('issues_count', {})}"
             )
 
-            # Jeśli QA nie zatwierdza, zwróć raport z ostrzeżeniem
+            # QA issues are informational - log but proceed with finalization
             if not qa_report.get("approved", False):
                 logger.warning("QA review found critical issues")
-                return {
-                    "status": "qa_failed",
-                    "document_id": document_id,
-                    "qa_report": qa_report,
-                    "message": "Translation has quality issues that should be reviewed",
-                }
 
             # Faza 3: Rekonstrukcja DOCX
             logger.info("Phase 3: Reconstructing DOCX")

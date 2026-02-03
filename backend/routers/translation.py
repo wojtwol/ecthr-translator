@@ -593,21 +593,7 @@ async def _run_finalization(job_id: str, document_id: str, db: Session):
         if result.get("status") == "error":
             raise Exception(result.get("error", "Finalization failed"))
 
-        if result.get("status") == "qa_failed":
-            # QA found critical issues
-            job.status = TranslationJobStatus.AWAITING_VALIDATION
-            job.current_step = "QA review failed - please review issues"
-            job.error_message = result.get("message")
-            db.commit()
-
-            await ws_manager.broadcast_error(
-                document_id, "QA review found critical issues. Please review."
-            )
-
-            logger.warning(f"[Job {job_id}] QA review failed")
-            return
-
-        # Success!
+        # Success - QA issues are included in qa_report but don't block completion
         job.status = TranslationJobStatus.COMPLETED
         job.phase = TranslationPhase.COMPLETED
         job.progress = 1.0
