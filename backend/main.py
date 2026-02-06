@@ -2,6 +2,8 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pathlib import Path
 import logging
 
 from config import settings
@@ -120,6 +122,24 @@ async def health_check():
             "case_law_research": settings.hudoc_enabled or settings.curia_enabled or not settings.iate_use_mock,
         },
     }
+
+
+@app.get("/docs/project-description")
+async def download_project_description():
+    """Download project description document."""
+    docs_path = Path(__file__).parent.parent / "data" / "docs" / "PROJECT_DESCRIPTION.docx"
+    if not docs_path.exists():
+        # Fallback to repo docs
+        docs_path = Path(__file__).parent.parent / "docs" / "PROJECT_DESCRIPTION.docx"
+
+    if not docs_path.exists():
+        return {"error": "Document not found"}
+
+    return FileResponse(
+        path=docs_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename="PROJECT_DESCRIPTION.docx",
+    )
 
 
 if __name__ == "__main__":
