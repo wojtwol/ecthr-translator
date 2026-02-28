@@ -1,6 +1,8 @@
 """Structure Parser - rozpoznaje strukturę orzeczeń ETPCz."""
 
 import logging
+import re
+import json
 from typing import List, Dict, Any
 from anthropic import Anthropic
 from config import settings
@@ -117,10 +119,7 @@ Odpowiedz w formacie JSON:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            # Parsuj odpowiedź JSON
-            import json
-
-            result = json.loads(response.content[0].text)
+            result = self._extract_json(response.content[0].text)
 
             # Waliduj section_type
             section_type = result.get("section_type", "OTHER").upper()
@@ -137,6 +136,65 @@ Odpowiedz w formacie JSON:
         except Exception as e:
             logger.warning(f"Claude API error, using simple classification: {e}")
             return self._simple_classification(segment_text)
+
+    def _extract_json(self, text: str) -> Dict[str, Any]:
+        """
+        Wyciąga JSON z odpowiedzi Claude, obsługując markdown code blocks,
+        trailing text, i drobne błędy formatowania.
+
+        Args:
+            text: Surowy tekst odpowiedzi Claude
+
+        Returns:
+            Sparsowany dict
+
+        Raises:
+            ValueError: Gdy nie udało się wyciągnąć JSON
+        """
+        # 1. Strip markdown code fences
+        cleaned = text.strip()
+        fence_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', cleaned, re.DOTALL)
+        if fence_match:
+            cleaned = fence_match.group(1).strip()
+
+        # 2. Try direct parse first
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        # 3. Extract first {...} block from text
+        brace_match = re.search(r'\{[^{}]*\}', cleaned, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(0))
+            except json.JSONDecodeError:
+                # 4. Try fixing common issues: trailing commas, single quotes
+                fixed = brace_match.group(0)
+                fixed = re.sub(r',\s*}', '}', fixed)  # trailing comma
+                fixed = re.sub(r",\s*]", "]", fixed)  # trailing comma in arrays
+                try:
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    pass
+
+        # 5. Last resort: regex extraction of section_type
+        type_match = re.search(
+            r'"?section_type"?\s*:\s*"?(PROCEDURE|FACTS|LAW|OPERATIVE|OTHER)"?',
+            text, re.IGNORECASE
+        )
+        if type_match:
+            section = type_match.group(1).upper()
+            conf_match = re.search(r'"?confidence"?\s*:\s*([0-9.]+)', text)
+            confidence = float(conf_match.group(1)) if conf_match else 0.6
+            return {
+                "section_type": section,
+                "confidence": confidence,
+                "subsection": None,
+                "reasoning": "Extracted via regex fallback",
+            }
+
+        raise ValueError(f"Could not extract JSON from response: {text[:200]}")
 
     def _simple_classification(self, text: str) -> Dict[str, Any]:
         """
