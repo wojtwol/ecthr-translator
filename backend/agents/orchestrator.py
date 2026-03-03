@@ -1,5 +1,6 @@
 """Orchestrator - koordynuje workflow tłumaczenia."""
 
+import gc
 import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -320,6 +321,9 @@ class Orchestrator:
                     except Exception as e:
                         logger.error(f"Error in batch callback: {e}", exc_info=True)
 
+                # Free memory after each batch to prevent OOM on limited RAM
+                gc.collect()
+
             logger.info(
                 f"Batch processing complete. Total: {len(all_translated_segments)} segments, "
                 f"{len(all_extracted_terms)} terms"
@@ -616,6 +620,9 @@ class Orchestrator:
                     logger.warning(f"Could not enrich terminology from case law: {e}")
                     # Continue with TM-only terminology
 
+            # Free memory before heavy translation phase
+            gc.collect()
+
             # Faza 4: Tłumaczenie
             logger.info("Phase 4: Translating with TM terminology")
 
@@ -628,6 +635,9 @@ class Orchestrator:
             logger.info(
                 f"Translation complete. Stats: {translator.get_translation_stats(translated_segments)}"
             )
+
+            # Free memory before DOCX reconstruction
+            gc.collect()
 
             # Faza 5: Rekonstrukcja DOCX (bez QA review)
             logger.info("Phase 5: Reconstructing DOCX")
@@ -715,6 +725,9 @@ class Orchestrator:
                 segments, validated_terms
             )
 
+            # Free memory after phase 1
+            gc.collect()
+
             # Faza 2: QA Reviewer - sprawdź jakość
             logger.info("Phase 2: QA review")
             qa_report = await self.qa_reviewer.review(
@@ -729,6 +742,9 @@ class Orchestrator:
             if not qa_report.get("approved", False):
                 logger.warning("QA review found critical issues")
 
+            # Free memory after phase 2
+            gc.collect()
+
             # Faza 3: Rekonstrukcja DOCX
             logger.info("Phase 3: Reconstructing DOCX")
             output_path = settings.output_path / f"{document_id}_translated.docx"
@@ -738,6 +754,9 @@ class Orchestrator:
                 str(output_path),
                 color_citations=settings.color_citations_in_docx
             )
+
+            # Free memory after phase 3
+            gc.collect()
 
             # Faza 4: Automatyczny update TM
             logger.info("Phase 4: Updating Translation Memory")
