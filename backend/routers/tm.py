@@ -203,10 +203,15 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
         Plik TMX z segmentami tylko z tego projektu
     """
     try:
+        logger.info(f"Exporting TM for document: {document_id}")
+
         # Sprawdź czy dokument istnieje
         db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
         if not db_document:
+            logger.error(f"Document not found: {document_id}")
             raise HTTPException(status_code=404, detail="Document not found")
+
+        logger.info(f"Found document: {db_document.filename}, status: {db_document.status}")
 
         # Pobierz wszystkie segmenty z tego projektu
         segments = (
@@ -217,7 +222,10 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
             .all()
         )
 
+        logger.info(f"Found {len(segments)} translated segments")
+
         if not segments:
+            logger.error(f"No translated segments found for document: {document_id}")
             raise HTTPException(
                 status_code=404,
                 detail="No translated segments found for this document"
@@ -241,9 +249,14 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
 
         # Zapisz do pliku TMX
         export_filename = f"tm_export_{document_id}.tmx"
+        logger.info(f"Saving TMX to: {settings.tm_path / export_filename}")
         tm_manager.save(export_filename)
 
         file_path = settings.tm_path / export_filename
+
+        if not file_path.exists():
+            logger.error(f"TMX file was not created: {file_path}")
+            raise HTTPException(status_code=500, detail="Failed to create TMX file")
 
         logger.info(f"Exported {len(segments)} segments from document {document_id} to {export_filename}")
 

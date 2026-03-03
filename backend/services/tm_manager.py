@@ -246,6 +246,9 @@ class TMManager:
         Args:
             filename: Nazwa pliku wyjściowego
         """
+        # Ensure directory exists
+        self.tm_path.mkdir(parents=True, exist_ok=True)
+
         output_path = self.tm_path / filename
 
         # Utwórz root element
