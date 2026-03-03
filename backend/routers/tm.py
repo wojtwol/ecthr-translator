@@ -59,6 +59,7 @@ def split_into_sentences(text: str) -> list[str]:
     - Skróty (Mr., Mrs., Dr., etc.)
     - Numery artykułów (Article 6, art. 3)
     - Cytaty i nawiasy
+    - Odniesienia do paragrafów (paragraph 39 below)
 
     Args:
         text: Tekst do podzielenia
@@ -69,28 +70,60 @@ def split_into_sentences(text: str) -> list[str]:
     if not text or not text.strip():
         return []
 
-    # Wzorce które NIE są końcem zdania
-    # Skróty angielskie i polskie
-    abbreviations = r'(?:Mr|Mrs|Ms|Dr|Prof|Inc|Ltd|Jr|Sr|vs|etc|i\.e|e\.g|art|Art|par|Par|ust|pkt|lit|zob|por|np|tj|tzw|m\.in|ww|jw|ok|ul|al|pl|os|im)'
+    # Wzorce które NIE są końcem zdania - skróty angielskie i polskie
+    abbreviations = [
+        'Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Inc', 'Ltd', 'Jr', 'Sr',
+        'vs', 'etc', 'al', 'cf', 'ibid', 'op', 'cit', 'seq',
+        'i.e', 'e.g', 'viz', 'approx', 'ca',
+        'art', 'Art', 'par', 'Par', 'no', 'No', 'nos', 'Nos',
+        'ust', 'pkt', 'lit', 'zob', 'por', 'np', 'tj', 'tzw',
+        'm.in', 'ww', 'jw', 'ok', 'ul', 'al', 'pl', 'os', 'im',
+        'poz', 'Dz', 'dz', 'str', 'r', 'w', 'v'  # 'v' for case names like "X v. Poland"
+    ]
 
-    # Najpierw zamień skróty na placeholdery
-    placeholder = "<<<ABBR>>>"
-    text_processed = re.sub(
-        rf'\b({abbreviations})\.',
-        rf'\1{placeholder}',
-        text,
-        flags=re.IGNORECASE
+    placeholder = "\x00ABBR\x00"
+
+    text_processed = text
+
+    # Zamień skróty na placeholdery
+    for abbr in abbreviations:
+        # Wzorzec: skrót + kropka + spacja (ale nie koniec zdania)
+        pattern = rf'\b{re.escape(abbr)}\.\s'
+        text_processed = re.sub(pattern, f'{abbr}{placeholder} ', text_processed, flags=re.IGNORECASE)
+
+    # Zamień inicjały imion (M., Z., J., A. etc.) - pojedyncza wielka litera + kropka
+    text_processed = re.sub(r'\b([A-Z])\.\s+(?=[A-Z])', rf'\1{placeholder} ', text_processed)
+
+    # Zamień numery z kropką, po których następuje mała litera lub cyfra (np. "art. 6", "no. 123")
+    text_processed = re.sub(r'(\d+)\.\s+(?=[a-ząćęłńóśźż0-9])', rf'\1{placeholder} ', text_processed)
+
+    # Podziel na zdania: . ! ? po których następuje:
+    # - spacja + wielka litera
+    # - nawias/cudzysłów przed lub po interpunkcji
+    # Obsługuje: "word." "word)." "word.)" "(word)." etc.
+    sentence_endings = re.compile(
+        r'([\)\]\"\']?[.!?][\"\'\)\]]*)\s+(?=[A-ZŻŹĆĄŚĘŁÓŃ\"\'\(\[])'
     )
 
-    # Zamień też numery z kropką (np. "1.", "2.") które nie kończą zdania
-    text_processed = re.sub(r'(\d+)\.(\s*\d)', rf'\1{placeholder}\2', text_processed)
+    # Podziel tekst
+    parts = sentence_endings.split(text_processed)
 
-    # Teraz podziel na zdania
-    # Zdanie kończy się: . ! ? po którym następuje spacja i wielka litera lub koniec tekstu
-    sentences = re.split(r'(?<=[.!?])\s+(?=[A-ZŻŹĆĄŚĘŁÓŃ])', text_processed)
+    # Złóż zdania z powrotem (split z grupą daje też separatory)
+    sentences = []
+    current = ""
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            current += part
+        else:
+            current += part
+            sentences.append(current.strip())
+            current = ""
+
+    if current.strip():
+        sentences.append(current.strip())
 
     # Przywróć skróty
-    sentences = [s.replace(placeholder, '.').strip() for s in sentences]
+    sentences = [s.replace(placeholder, '.') for s in sentences]
 
     # Filtruj puste zdania i bardzo krótkie (mniej niż 10 znaków)
     sentences = [s for s in sentences if s and len(s) >= 10]
