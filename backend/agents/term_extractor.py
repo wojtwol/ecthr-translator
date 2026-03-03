@@ -69,9 +69,10 @@ CRITICAL RULES:
 2. Use the exact phrase from the segment as "context" - do not paraphrase or invent
 3. DO NOT add terms that are not in the segment
 4. DO NOT complete or infer missing information
+5. NO DUPLICATES - each unique pair (source_term → proposed_translation) should appear ONLY ONCE in your response, even if the term appears multiple times in the segment with different contexts
 
 CRITICAL RULES FOR COURT/INSTITUTION NAMES:
-5. Extract FULL names of courts and institutions, NOT individual words
+6. Extract FULL names of courts and institutions, NOT individual words
    ✓ CORRECT: "Warsaw Court of Appeal" → "Sąd Apelacyjny w Warszawie"
    ✗ WRONG: "Appeal" alone (missing context - which appeal?)
    ✓ CORRECT: "Supreme Court" → "Sąd Najwyższy"
@@ -79,7 +80,7 @@ CRITICAL RULES FOR COURT/INSTITUTION NAMES:
    ✓ CORRECT: "District Court of Warsaw" → "Sąd Rejonowy w Warszawie"
    ✗ WRONG: "District Court" without location
 
-6. For proper names of institutions, extract the complete official name:
+7. For proper names of institutions, extract the complete official name:
    ✓ "European Court of Human Rights"
    ✓ "Constitutional Tribunal"
    ✓ "National Council of the Judiciary"
@@ -87,7 +88,7 @@ CRITICAL RULES FOR COURT/INSTITUTION NAMES:
    ✗ NOT: "Council" alone
 
 CRITICAL RULES FOR CONTEXT-DEPENDENT TERMS:
-7. The SAME word can have DIFFERENT translations depending on context!
+8. The SAME word can have DIFFERENT translations depending on context!
    Extract each occurrence separately with its specific context and translation:
 
    Example with "appeal":
@@ -103,7 +104,7 @@ CRITICAL RULES FOR CONTEXT-DEPENDENT TERMS:
    ✓ "the Warsaw Regional Court" → "Sąd Okręgowy w Warszawie" (specific court)
    ✓ "appeared in court" → "stawił się w sądzie" (generic reference)
 
-8. ALWAYS include rich context showing HOW the term is used:
+9. ALWAYS include rich context showing HOW the term is used:
    - Include surrounding words that clarify meaning
    - Show if it's part of a procedural phrase
    - Indicate if referring to institution vs. action
