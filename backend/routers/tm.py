@@ -214,21 +214,31 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
         logger.info(f"Found document: {db_document.filename}, status: {db_document.status}")
 
         # Pobierz wszystkie segmenty z tego projektu
+        # First check total segments
+        total_segments = (
+            db.query(models.Segment)
+            .filter(models.Segment.document_id == document_id)
+            .count()
+        )
+        logger.info(f"Total segments in DB for document: {total_segments}")
+
         segments = (
             db.query(models.Segment)
             .filter(models.Segment.document_id == document_id)
             .filter(models.Segment.target_text.isnot(None))
+            .filter(models.Segment.target_text != "")
             .order_by(models.Segment.index)
             .all()
         )
 
-        logger.info(f"Found {len(segments)} translated segments")
+        logger.info(f"Found {len(segments)} translated segments (with non-empty target_text)")
 
         if not segments:
             logger.error(f"No translated segments found for document: {document_id}")
+            # Return more detailed error
             raise HTTPException(
                 status_code=404,
-                detail="No translated segments found for this document"
+                detail=f"No translated segments found. Total segments in DB: {total_segments}. Document status: {db_document.status}"
             )
 
         # Utwórz nowy TMManager i dodaj segmenty z projektu
