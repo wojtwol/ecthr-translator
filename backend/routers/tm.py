@@ -393,12 +393,28 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
                             )
                             sentence_count += 1
                 else:
-                    # Liczba zdań się nie zgadza - pomiń segment
-                    # (zasada: 1 zdanie = 1 segment TM, nie dodajemy wielu zdań jako jeden)
+                    # Liczba zdań się nie zgadza - dodaj cały segment
+                    # (TM musi być kompletna, nie pomijamy segmentów)
                     logger.warning(
                         f"Segment {seg.index}: sentence count mismatch "
-                        f"(source: {len(source_sentences)}, target: {len(target_sentences)}), skipping"
+                        f"(source: {len(source_sentences)}, target: {len(target_sentences)}), "
+                        "adding as single entry"
                     )
+                    src_clean = strip_leading_numbering(seg.source_text)
+                    tgt_clean = strip_leading_numbering(seg.target_text)
+
+                    if src_clean and tgt_clean:
+                        metadata = {
+                            "document_id": document_id,
+                            "document_name": db_document.filename,
+                            "segment_index": str(seg.index),
+                        }
+                        tm_manager.add_entry(
+                            source=src_clean,
+                            target=tgt_clean,
+                            metadata=metadata
+                        )
+                        sentence_count += 1
 
         logger.info(f"Split {len(segments)} segments into {sentence_count} TM entries (sentences)")
 
@@ -475,16 +491,17 @@ async def update_tm_from_project(document_id: str, db: Session = Depends(get_db)
                 source_sentences = split_into_sentences(seg.source_text)
                 target_sentences = split_into_sentences(seg.target_text)
 
-                # Przygotuj pary do dodania - tylko jeśli liczba zdań się zgadza
-                if len(source_sentences) != len(target_sentences) or len(source_sentences) == 0:
-                    # Pomiń segment - zasada 1 zdanie = 1 segment TM
+                # Przygotuj pary do dodania
+                if len(source_sentences) == len(target_sentences) and len(source_sentences) > 0:
+                    pairs = list(zip(source_sentences, target_sentences))
+                else:
+                    # Liczba zdań się nie zgadza - dodaj cały segment
                     logger.debug(
                         f"Segment {seg.index}: sentence count mismatch "
-                        f"(source: {len(source_sentences)}, target: {len(target_sentences)}), skipping"
+                        f"(source: {len(source_sentences)}, target: {len(target_sentences)}), "
+                        "adding as single entry"
                     )
-                    continue
-
-                pairs = list(zip(source_sentences, target_sentences))
+                    pairs = [(seg.source_text, seg.target_text)]
 
                 for src, tgt in pairs:
                     # Usuń numerację z początku (jak Trados)
