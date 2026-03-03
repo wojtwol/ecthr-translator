@@ -7,7 +7,7 @@ from pathlib import Path
 import logging
 
 from config import settings
-from routers import documents, translation, glossary, websocket, tm_management
+from routers import documents, translation, glossary, websocket, tm_management, tm
 from db.database import init_db
 
 # Configure logging
@@ -44,6 +44,7 @@ app.include_router(documents.router, prefix="/api")
 app.include_router(translation.router, prefix="/api")
 app.include_router(glossary.router, prefix="/api")
 app.include_router(tm_management.router, prefix="/api")
+app.include_router(tm.router, prefix="/api")
 app.include_router(websocket.router)
 
 
