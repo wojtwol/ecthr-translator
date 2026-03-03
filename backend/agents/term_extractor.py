@@ -71,6 +71,14 @@ CRITICAL RULES:
 4. DO NOT complete or infer missing information
 5. NO DUPLICATES - each unique pair (source_term → proposed_translation) should appear ONLY ONCE in your response, even if the term appears multiple times in the segment with different contexts
 
+CRITICAL: DO NOT EXTRACT PERSONAL NAMES!
+- DO NOT extract first names (e.g., "John", "Maria", "Andrzej")
+- DO NOT extract surnames (e.g., "Smith", "Kowalski", "Nowak")
+- DO NOT extract full names of individuals (e.g., "Jan Kowalski", "John Smith")
+- DO NOT extract names of applicants, lawyers, judges, or any other persons
+- Names of persons are NOT terminology and should NEVER be included
+- EXCEPTION: You CAN extract names of COURTS and INSTITUTIONS (e.g., "Warsaw Court of Appeal")
+
 CRITICAL RULES FOR COURT/INSTITUTION NAMES:
 6. Extract FULL names of courts and institutions, NOT individual words
    ✓ CORRECT: "Warsaw Court of Appeal" → "Sąd Apelacyjny w Warszawie"
@@ -326,6 +334,32 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
             or len(term["proposed_translation"]) > 200
         ):
             return False
+
+        # Odfiltruj imiona i nazwiska (1-2 słowa, obie z wielkiej litery, bez słów kluczowych)
+        source = term["source_term"].strip()
+        words = source.split()
+
+        # Heurystyka: 1-2 słowa, każde zaczyna się wielką literą = prawdopodobnie imię/nazwisko
+        if len(words) <= 2:
+            # Wszystkie słowa zaczynają się wielką literą
+            all_capitalized = all(w[0].isupper() for w in words if w)
+
+            # Nie zawiera słów kluczowych instytucji/sądów
+            institution_keywords = {
+                'court', 'tribunal', 'ministry', 'office', 'commission', 'committee',
+                'council', 'assembly', 'parliament', 'government', 'authority',
+                'sąd', 'trybunał', 'ministerstwo', 'urząd', 'komisja', 'rada',
+                'sejm', 'senat', 'rząd', 'prokuratura', 'rzecznik'
+            }
+            has_institution_keyword = any(
+                kw in source.lower() for kw in institution_keywords
+            )
+
+            # Jeśli to 1-2 słowa z wielkiej litery bez słów kluczowych instytucji
+            # to prawdopodobnie imię/nazwisko - odrzuć
+            if all_capitalized and not has_institution_keyword:
+                logger.debug(f"Rejected potential personal name: {source}")
+                return False
 
         # Ustaw domyślne wartości
         term.setdefault("confidence", 0.6)
