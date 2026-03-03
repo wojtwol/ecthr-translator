@@ -131,3 +131,30 @@ class SourceReport(BaseModel):
     tm_exact_terms: List[SourceReportItem] = []
     tm_fuzzy_terms: List[SourceReportItem] = []
     proposed_terms: List[SourceReportItem] = []
+
+
+class GlossarySessionCreate(BaseModel):
+    """Request to create/update glossary session."""
+
+    name: Optional[str] = None
+    current_page: int = 1
+    status_filter: str = "all"
+    last_viewed_term_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class GlossarySessionResponse(BaseModel):
+    """Glossary session response."""
+
+    id: str
+    document_id: str
+    name: Optional[str] = None
+    current_page: int
+    status_filter: str
+    last_viewed_term_id: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

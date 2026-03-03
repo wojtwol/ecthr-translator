@@ -7,10 +7,88 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sessionId, setSessionId] = useState(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [showSessionInfo, setShowSessionInfo] = useState(false);
+
+  // Load saved session on mount
+  useEffect(() => {
+    loadSession();
+  }, [documentId]);
+
+  // Save session on filter/page change (debounced)
+  useEffect(() => {
+    if (sessionLoaded) {
+      const timeout = setTimeout(() => {
+        saveSession();
+      }, 1000); // Debounce 1 second
+      return () => clearTimeout(timeout);
+    }
+  }, [filter, currentPage, sessionLoaded]);
 
   useEffect(() => {
-    fetchTerms();
-  }, [documentId, filter, currentPage, refreshTrigger]);
+    if (sessionLoaded) {
+      fetchTerms();
+    }
+  }, [documentId, filter, currentPage, refreshTrigger, sessionLoaded]);
+
+  const loadSession = async () => {
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions/active`
+      );
+      if (response.ok) {
+        const session = await response.json();
+        setSessionId(session.id);
+        setFilter(session.status_filter || 'all');
+        setCurrentPage(session.current_page || 1);
+        setShowSessionInfo(true);
+        console.log('[GlossaryPanel] Restored session:', session);
+      }
+    } catch (error) {
+      console.log('[GlossaryPanel] No active session, starting fresh');
+    }
+    setSessionLoaded(true);
+  };
+
+  const saveSession = async () => {
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            current_page: currentPage,
+            status_filter: filter,
+          }),
+        }
+      );
+      if (response.ok) {
+        const session = await response.json();
+        setSessionId(session.id);
+      }
+    } catch (error) {
+      console.error('[GlossaryPanel] Failed to save session:', error);
+    }
+  };
+
+  const completeSession = async () => {
+    if (!sessionId) return;
+    if (!confirm('Czy zakończyć tę sesję pracy nad glosariuszem?')) return;
+
+    try {
+      await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions/${sessionId}/complete`,
+        { method: 'POST' }
+      );
+      setSessionId(null);
+      setShowSessionInfo(false);
+      alert('Sesja została zakończona. Przy następnym wejściu rozpoczniesz od nowa.');
+    } catch (error) {
+      console.error('[GlossaryPanel] Failed to complete session:', error);
+    }
+  };
 
   const fetchTerms = async (retryCount = 0) => {
     setLoading(true);
@@ -141,20 +219,46 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
 
   return (
     <div className="bg-white rounded-lg shadow">
+      {/* Session info banner */}
+      {showSessionInfo && sessionId && (
+        <div className="px-6 py-2 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
+          <span className="text-sm text-blue-700">
+            📌 Przywrócono poprzednią sesję pracy (strona {currentPage}, filtr: {filter === 'all' ? 'wszystkie' : filter})
+          </span>
+          <button
+            onClick={() => setShowSessionInfo(false)}
+            className="text-blue-500 hover:text-blue-700 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header with stats */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">
             📚 Terminologia ({stats?.total || 0})
           </h2>
-          {stats && stats.pending > 0 && (
-            <button
-              onClick={handleApproveAll}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-            >
-              ✓ Zatwierdź wszystkie ({stats.pending})
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {sessionId && (
+              <button
+                onClick={completeSession}
+                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                title="Zakończ sesję i zacznij od nowa przy następnym wejściu"
+              >
+                🏁 Zakończ sesję
+              </button>
+            )}
+            {stats && stats.pending > 0 && (
+              <button
+                onClick={handleApproveAll}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                ✓ Zatwierdź wszystkie ({stats.pending})
+              </button>
+            )}
+          </div>
         </div>
 
         {stats && (

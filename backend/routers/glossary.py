@@ -19,6 +19,8 @@ from models.term import (
     GlossaryStats,
     SourceReport,
     SourceReportItem,
+    GlossarySessionCreate,
+    GlossarySessionResponse,
 )
 from db.database import get_db
 from db import models
@@ -1039,3 +1041,209 @@ async def export_approved_terms_html(document_id: str, db: Session = Depends(get
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+
+# ============================================================================
+# GLOSSARY SESSION ENDPOINTS - Save/Resume work progress
+# ============================================================================
+
+
+@router.get("/{document_id}/sessions", response_model=List[GlossarySessionResponse])
+async def get_glossary_sessions(document_id: str, db: Session = Depends(get_db)):
+    """
+    Get all glossary work sessions for a document.
+
+    Args:
+        document_id: Document ID
+        db: Database session
+
+    Returns:
+        List of glossary sessions
+    """
+    sessions = db.query(models.GlossarySession).filter(
+        models.GlossarySession.document_id == document_id
+    ).order_by(models.GlossarySession.updated_at.desc()).all()
+
+    return [
+        GlossarySessionResponse(
+            id=s.id,
+            document_id=s.document_id,
+            name=s.name,
+            current_page=s.current_page,
+            status_filter=s.status_filter,
+            last_viewed_term_id=s.last_viewed_term_id,
+            notes=s.notes,
+            is_active=bool(s.is_active),
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+        )
+        for s in sessions
+    ]
+
+
+@router.get("/{document_id}/sessions/active", response_model=GlossarySessionResponse)
+async def get_active_session(document_id: str, db: Session = Depends(get_db)):
+    """
+    Get the most recent active session for a document.
+
+    Args:
+        document_id: Document ID
+        db: Database session
+
+    Returns:
+        Active glossary session or 404
+    """
+    session = db.query(models.GlossarySession).filter(
+        models.GlossarySession.document_id == document_id,
+        models.GlossarySession.is_active == 1
+    ).order_by(models.GlossarySession.updated_at.desc()).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="No active session found")
+
+    return GlossarySessionResponse(
+        id=session.id,
+        document_id=session.document_id,
+        name=session.name,
+        current_page=session.current_page,
+        status_filter=session.status_filter,
+        last_viewed_term_id=session.last_viewed_term_id,
+        notes=session.notes,
+        is_active=bool(session.is_active),
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+@router.post("/{document_id}/sessions", response_model=GlossarySessionResponse)
+async def create_or_update_session(
+    document_id: str,
+    session_data: GlossarySessionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new session or update the active one.
+
+    Args:
+        document_id: Document ID
+        session_data: Session data
+        db: Database session
+
+    Returns:
+        Created/updated session
+    """
+    # Check if document exists
+    db_document = db.query(models.Document).filter(
+        models.Document.id == document_id
+    ).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Find active session or create new one
+    session = db.query(models.GlossarySession).filter(
+        models.GlossarySession.document_id == document_id,
+        models.GlossarySession.is_active == 1
+    ).first()
+
+    if session:
+        # Update existing session
+        session.current_page = session_data.current_page
+        session.status_filter = session_data.status_filter
+        session.last_viewed_term_id = session_data.last_viewed_term_id
+        if session_data.name:
+            session.name = session_data.name
+        if session_data.notes:
+            session.notes = session_data.notes
+        session.updated_at = datetime.now()
+    else:
+        # Create new session
+        session = models.GlossarySession(
+            id=str(uuid.uuid4()),
+            document_id=document_id,
+            name=session_data.name or f"Session {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            current_page=session_data.current_page,
+            status_filter=session_data.status_filter,
+            last_viewed_term_id=session_data.last_viewed_term_id,
+            notes=session_data.notes,
+            is_active=1,
+        )
+        db.add(session)
+
+    db.commit()
+    db.refresh(session)
+
+    return GlossarySessionResponse(
+        id=session.id,
+        document_id=session.document_id,
+        name=session.name,
+        current_page=session.current_page,
+        status_filter=session.status_filter,
+        last_viewed_term_id=session.last_viewed_term_id,
+        notes=session.notes,
+        is_active=bool(session.is_active),
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+@router.post("/{document_id}/sessions/{session_id}/complete")
+async def complete_session(
+    document_id: str,
+    session_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a session as completed (archived).
+
+    Args:
+        document_id: Document ID
+        session_id: Session ID
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    session = db.query(models.GlossarySession).filter(
+        models.GlossarySession.id == session_id,
+        models.GlossarySession.document_id == document_id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session.is_active = 0
+    session.updated_at = datetime.now()
+    db.commit()
+
+    return {"message": "Session marked as completed", "session_id": session_id}
+
+
+@router.delete("/{document_id}/sessions/{session_id}")
+async def delete_session(
+    document_id: str,
+    session_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a glossary session.
+
+    Args:
+        document_id: Document ID
+        session_id: Session ID
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    session = db.query(models.GlossarySession).filter(
+        models.GlossarySession.id == session_id,
+        models.GlossarySession.document_id == document_id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.delete(session)
+    db.commit()
+
+    return {"message": "Session deleted", "session_id": session_id}

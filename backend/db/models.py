@@ -53,6 +53,23 @@ class Term(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class GlossarySession(Base):
+    """Glossary work session - saves progress for resuming later."""
+
+    __tablename__ = "glossary_sessions"
+
+    id = Column(String(50), primary_key=True)
+    document_id = Column(String(50), ForeignKey("documents.id"), nullable=False)
+    name = Column(String(255), nullable=True)  # Optional session name
+    current_page = Column(Integer, default=1)
+    status_filter = Column(String(50), default="all")  # all, pending, approved, edited, rejected
+    last_viewed_term_id = Column(String(50), nullable=True)
+    notes = Column(Text, nullable=True)  # Optional notes for the session
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = completed/archived
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class TranslationJob(Base):
     """Translation job model."""
 
