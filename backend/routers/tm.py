@@ -11,6 +11,46 @@ from sqlalchemy.orm import Session
 from config import settings
 
 
+def strip_leading_numbering(text: str) -> str:
+    """
+    Usuwa numerację z początku segmentu (jak robi Trados).
+
+    Przykłady:
+    - "11. The applicant..." → "The applicant..."
+    - "2. W dniu..." → "W dniu..."
+    - "(a) The court..." → "The court..."
+    - "§ 45. The Government..." → "The Government..."
+
+    Args:
+        text: Tekst do przetworzenia
+
+    Returns:
+        Tekst bez numeracji na początku
+    """
+    if not text:
+        return text
+
+    # Wzorce numeracji na początku segmentu:
+    # - "11." lub "11 ." (numer z kropką)
+    # - "(a)" lub "(1)" (litera/numer w nawiasie)
+    # - "§ 45." (paragraf)
+    # - "a)" lub "1)" (litera/numer z nawiasem zamykającym)
+    patterns = [
+        r'^\d+\s*\.\s*',           # "11. " lub "11 . "
+        r'^\(\s*[a-zA-Z0-9]+\s*\)\s*',  # "(a) " lub "(1) "
+        r'^§\s*\d+\s*\.?\s*',      # "§ 45. " lub "§ 45 "
+        r'^[a-zA-Z0-9]+\s*\)\s*',  # "a) " lub "1) "
+    ]
+
+    result = text
+    for pattern in patterns:
+        result = re.sub(pattern, '', result)
+        if result != text:
+            break  # Zastosuj tylko pierwszy pasujący wzorzec
+
+    return result.strip()
+
+
 def split_into_sentences(text: str) -> list[str]:
     """
     Dzieli tekst na zdania.
@@ -302,32 +342,41 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
                 # Jeśli liczba zdań się zgadza, sparuj je 1:1
                 if len(source_sentences) == len(target_sentences) and len(source_sentences) > 0:
                     for i, (src_sent, tgt_sent) in enumerate(zip(source_sentences, target_sentences)):
+                        # Usuń numerację z początku (jak Trados)
+                        src_clean = strip_leading_numbering(src_sent)
+                        tgt_clean = strip_leading_numbering(tgt_sent)
+
+                        if src_clean and tgt_clean:
+                            metadata = {
+                                "document_id": document_id,
+                                "document_name": db_document.filename,
+                                "segment_index": str(seg.index),
+                                "sentence_index": str(i),
+                            }
+                            tm_manager.add_entry(
+                                source=src_clean,
+                                target=tgt_clean,
+                                metadata=metadata
+                            )
+                            sentence_count += 1
+                else:
+                    # Jeśli liczba zdań się nie zgadza, dodaj cały segment
+                    # (bezpieczniejsze niż błędne parowanie)
+                    src_clean = strip_leading_numbering(seg.source_text)
+                    tgt_clean = strip_leading_numbering(seg.target_text)
+
+                    if src_clean and tgt_clean:
                         metadata = {
                             "document_id": document_id,
                             "document_name": db_document.filename,
                             "segment_index": str(seg.index),
-                            "sentence_index": str(i),
                         }
                         tm_manager.add_entry(
-                            source=src_sent,
-                            target=tgt_sent,
+                            source=src_clean,
+                            target=tgt_clean,
                             metadata=metadata
                         )
                         sentence_count += 1
-                else:
-                    # Jeśli liczba zdań się nie zgadza, dodaj cały segment
-                    # (bezpieczniejsze niż błędne parowanie)
-                    metadata = {
-                        "document_id": document_id,
-                        "document_name": db_document.filename,
-                        "segment_index": str(seg.index),
-                    }
-                    tm_manager.add_entry(
-                        source=seg.source_text,
-                        target=seg.target_text,
-                        metadata=metadata
-                    )
-                    sentence_count += 1
 
         logger.info(f"Split {len(segments)} segments into {sentence_count} TM entries (sentences)")
 
@@ -412,8 +461,15 @@ async def update_tm_from_project(document_id: str, db: Session = Depends(get_db)
                     pairs = [(seg.source_text, seg.target_text)]
 
                 for src, tgt in pairs:
+                    # Usuń numerację z początku (jak Trados)
+                    src_clean = strip_leading_numbering(src)
+                    tgt_clean = strip_leading_numbering(tgt)
+
+                    if not src_clean or not tgt_clean:
+                        continue
+
                     # Sprawdź czy już istnieje dokładne dopasowanie
-                    existing = tm_manager.find_exact(src)
+                    existing = tm_manager.find_exact(src_clean)
 
                     if existing is None:
                         # Dodaj nowy wpis
@@ -423,8 +479,8 @@ async def update_tm_from_project(document_id: str, db: Session = Depends(get_db)
                             "document_name": db_document.filename,
                         }
                         tm_manager.add_entry(
-                            source=src,
-                            target=tgt,
+                            source=src_clean,
+                            target=tgt_clean,
                             metadata=metadata
                         )
                         added_count += 1
