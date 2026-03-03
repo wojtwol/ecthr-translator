@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ProgressBar from './ProgressBar';
 
 const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger }) => {
@@ -10,6 +10,8 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
   const [sessionId, setSessionId] = useState(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [showSessionInfo, setShowSessionInfo] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
+  const fileInputRef = useRef(null);
 
   // Load saved session on mount
   useEffect(() => {
@@ -150,8 +152,97 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
     return labels[status] || status;
   };
 
+  // Pobierz stan projektu jako JSON
+  const handleDownloadProject = async () => {
+    setSaveStatus('saving');
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/project-state`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // Pobierz nazwę pliku z headera lub użyj domyślnej
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `project_state_${documentId}.json`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=(.+)/);
+        if (match) filename = match[1];
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (error) {
+      console.error('Failed to download project:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+  };
+
+  // Wczytaj stan projektu z JSON
+  const handleLoadProject = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSaveStatus('saving');
+    try {
+      const text = await file.text();
+      const projectState = JSON.parse(text);
+
+      // Walidacja
+      if (!projectState.terms || !Array.isArray(projectState.terms)) {
+        throw new Error('Nieprawidłowy format pliku');
+      }
+
+      // Wyślij do backendu
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/restore-terms`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(projectState.terms),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      setSaveStatus('saved');
+      alert(`Wczytano projekt: ${result.updated} terminow przywroconych`);
+
+      // Odswież liste
+      fetchTerms();
+
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (error) {
+      console.error('Failed to load project:', error);
+      setSaveStatus('error');
+      alert(`Blad wczytywania projektu: ${error.message}`);
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+
+    // Reset input
+    event.target.value = '';
+  };
+
   const handleApproveAll = async () => {
-    if (!confirm(`Czy na pewno zatwierdzić wszystkie ${stats?.pending} oczekujące terminy?`)) {
+    if (!confirm(`Czy na pewno zatwierdzic wszystkie ${stats?.pending} oczekujace terminy?`)) {
       return;
     }
 
@@ -199,9 +290,9 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
 
       // Better error message for timeout/cold start
       if (error.name === 'AbortError') {
-        alert(`Backend się budzi (cold start). Spróbuj ponownie za chwilę.`);
+        alert(`Backend sie budzi (cold start). Sprobuj ponownie za chwile.`);
       } else {
-        alert(`Nie udało się ${action === 'approved' ? 'zatwierdzić' : 'odrzucić'} terminu: ${error.message}`);
+        alert(`Nie udalo sie ${action === 'approved' ? 'zatwierdzic' : 'odrzucic'} terminu: ${error.message}`);
       }
     }
   };
@@ -223,13 +314,13 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       {showSessionInfo && sessionId && (
         <div className="px-6 py-2 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
           <span className="text-sm text-blue-700">
-            📌 Przywrócono poprzednią sesję pracy (strona {currentPage}, filtr: {filter === 'all' ? 'wszystkie' : filter})
+            Przywrocono poprzednia sesje pracy (strona {currentPage}, filtr: {filter === 'all' ? 'wszystkie' : filter})
           </span>
           <button
             onClick={() => setShowSessionInfo(false)}
             className="text-blue-500 hover:text-blue-700 text-sm"
           >
-            ✕
+            x
           </button>
         </div>
       )}
@@ -238,24 +329,60 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">
-            📚 Terminologia ({stats?.total || 0})
+            Terminologia ({stats?.total || 0})
           </h2>
           <div className="flex items-center gap-2">
+            {/* Przyciski zapisu/wczytania projektu */}
+            <button
+              onClick={handleDownloadProject}
+              disabled={saveStatus === 'saving'}
+              className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                saveStatus === 'saved'
+                  ? 'bg-green-100 text-green-700'
+                  : saveStatus === 'error'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+              title="Pobierz stan projektu (JSON)"
+            >
+              {saveStatus === 'saving' ? 'Zapisuje...' :
+               saveStatus === 'saved' ? 'Zapisano!' :
+               saveStatus === 'error' ? 'Blad' :
+               'Pobierz projekt'}
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleLoadProject}
+              accept=".json"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={saveStatus === 'saving'}
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              title="Wczytaj zapisany projekt (JSON)"
+            >
+              Wczytaj projekt
+            </button>
+
             {sessionId && (
               <button
                 onClick={completeSession}
                 className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-                title="Zakończ sesję i zacznij od nowa przy następnym wejściu"
+                title="Zakoncz sesje i zacznij od nowa przy nastepnym wejsciu"
               >
-                🏁 Zakończ sesję
+                Zakoncz sesje
               </button>
             )}
+
             {stats && stats.pending > 0 && (
               <button
                 onClick={handleApproveAll}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
               >
-                ✓ Zatwierdź wszystkie ({stats.pending})
+                Zatwierdz wszystkie ({stats.pending})
               </button>
             )}
           </div>
@@ -265,7 +392,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
           <ProgressBar
             current={stats.approved + stats.edited}
             total={stats.total}
-            label="Postęp walidacji"
+            label="Postep walidacji"
           />
         )}
 
@@ -295,7 +422,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
         {terms.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            {filter === 'all' ? 'Brak terminów' : `Brak terminów z filtrem: ${getStatusLabel(filter)}`}
+            {filter === 'all' ? 'Brak terminow' : `Brak terminow z filtrem: ${getStatusLabel(filter)}`}
           </div>
         ) : (
           terms.map((term) => (
@@ -309,7 +436,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                     <span className="text-sm font-medium text-gray-900">
                       {term.source_term}
                     </span>
-                    <span className="text-gray-400">→</span>
+                    <span className="text-gray-400">-&gt;</span>
                     <span className="text-sm font-medium text-blue-600">
                       {term.target_term}
                     </span>
@@ -324,13 +451,13 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                         term.source_type === 'tm_fuzzy' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {term.source_type === 'hudoc' ? '⚖️ HUDOC' :
-                         term.source_type === 'curia' ? '🏛️ CURIA' :
-                         term.source_type === 'iate' ? '🇪🇺 IATE' :
-                         term.source_type === 'tm_exact' ? '✓ TM (100%)' :
-                         term.source_type === 'tm_prefix' ? '✓ TM (prefix)' :
-                         term.source_type === 'tm_fuzzy' ? '≈ TM (fuzzy)' :
-                         term.source_type === 'proposed' ? '💡 Propozycja' :
+                        {term.source_type === 'hudoc' ? 'HUDOC' :
+                         term.source_type === 'curia' ? 'CURIA' :
+                         term.source_type === 'iate' ? 'IATE' :
+                         term.source_type === 'tm_exact' ? 'TM (100%)' :
+                         term.source_type === 'tm_prefix' ? 'TM (prefix)' :
+                         term.source_type === 'tm_fuzzy' ? 'TM (fuzzy)' :
+                         term.source_type === 'proposed' ? 'Propozycja' :
                          term.source_type}
                       </span>
                     )}
@@ -345,15 +472,15 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                   {/* Additional sources from case law research */}
                   {term.sources && term.sources.length > 0 && (
                     <div className="flex gap-1 mt-2">
-                      <span className="text-xs text-gray-500 mr-1">Znaleziono też w:</span>
+                      <span className="text-xs text-gray-500 mr-1">Znaleziono tez w:</span>
                       {term.sources.map((source, idx) => (
                         <span
                           key={idx}
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"
                         >
-                          {source.source_type === 'hudoc' ? '⚖️ HUDOC' :
-                           source.source_type === 'curia' ? '🏛️ CURIA' :
-                           source.source_type === 'iate' ? '🇪🇺 IATE' :
+                          {source.source_type === 'hudoc' ? 'HUDOC' :
+                           source.source_type === 'curia' ? 'CURIA' :
+                           source.source_type === 'iate' ? 'IATE' :
                            source.source_type}
                         </span>
                       ))}
@@ -367,16 +494,16 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                       <button
                         onClick={(e) => handleQuickAction(term, 'approved', e)}
                         className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
-                        title="Zatwierdź"
+                        title="Zatwierdz"
                       >
-                        ✓
+                        OK
                       </button>
                       <button
                         onClick={(e) => handleQuickAction(term, 'rejected', e)}
                         className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium"
-                        title="Odrzuć"
+                        title="Odrzuc"
                       >
-                        ✗
+                        X
                       </button>
                     </>
                   )}
@@ -385,7 +512,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                     className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
                     title="Edytuj"
                   >
-                    ✎
+                    Edit
                   </button>
                   <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${getStatusBadge(term.status)}`}>
                     {getStatusLabel(term.status)}
@@ -401,7 +528,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
       {stats && stats.total > 0 && (
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
           <div className="text-sm text-gray-700">
-            Pokazuję terminy {(currentPage - 1) * 200 + 1}-{Math.min(currentPage * 200, stats.total)} z {stats.total}
+            Pokazuje terminy {(currentPage - 1) * 200 + 1}-{Math.min(currentPage * 200, stats.total)} z {stats.total}
           </div>
           <div className="flex gap-2">
             <button
@@ -413,7 +540,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
-              ← Poprzednia
+              Poprzednia
             </button>
             <span className="px-3 py-1 text-sm font-medium text-gray-700">
               Strona {currentPage} / {Math.ceil(stats.total / 200)}
@@ -427,7 +554,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
-              Następna →
+              Nastepna
             </button>
           </div>
         </div>

@@ -823,6 +823,145 @@ async def export_approved_terms_xlsx(document_id: str, db: Session = Depends(get
     )
 
 
+@router.get("/{document_id}/export/project-state")
+async def export_project_state(document_id: str, db: Session = Depends(get_db)):
+    """
+    Eksport pełnego stanu projektu do JSON (do późniejszego wznowienia pracy).
+
+    Args:
+        document_id: ID dokumentu
+        db: Sesja bazy danych
+
+    Returns:
+        Plik JSON z pełnym stanem projektu
+    """
+    import json
+
+    # Sprawdź czy dokument istnieje
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Pobierz wszystkie terminy
+    all_terms = db.query(models.Term).filter(
+        models.Term.document_id == document_id
+    ).order_by(models.Term.source_term).all()
+
+    # Przygotuj dane do eksportu
+    terms_data = []
+    for term in all_terms:
+        terms_data.append({
+            "id": term.id,
+            "source_term": term.source_term,
+            "target_term": term.target_term,
+            "original_proposal": term.original_proposal,
+            "source_type": term.source_type,
+            "confidence": term.confidence,
+            "status": term.status,
+            "references": term.references,
+            "created_at": term.created_at.isoformat() if term.created_at else None,
+            "updated_at": term.updated_at.isoformat() if term.updated_at else None,
+        })
+
+    project_state = {
+        "version": "1.0",
+        "document_id": document_id,
+        "document_filename": db_document.filename,
+        "exported_at": datetime.now().isoformat(),
+        "stats": {
+            "total": len(all_terms),
+            "pending": len([t for t in all_terms if t.status == "pending"]),
+            "approved": len([t for t in all_terms if t.status == "approved"]),
+            "edited": len([t for t in all_terms if t.status == "edited"]),
+            "rejected": len([t for t in all_terms if t.status == "rejected"]),
+        },
+        "terms": terms_data,
+    }
+
+    filename = f"project_state_{document_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+    return Response(
+        content=json.dumps(project_state, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.post("/{document_id}/import/project-state")
+async def import_project_state(document_id: str, db: Session = Depends(get_db)):
+    """
+    Import stanu projektu z JSON.
+
+    Wymaga przesłania pliku JSON w body requestu.
+
+    Args:
+        document_id: ID dokumentu
+        db: Sesja bazy danych
+
+    Returns:
+        Podsumowanie importu
+    """
+    from fastapi import Request
+    # Ten endpoint będzie obsługiwany przez osobną funkcję z File upload
+    raise HTTPException(status_code=501, detail="Use /import/project-state-file endpoint with file upload")
+
+
+@router.put("/{document_id}/restore-terms")
+async def restore_terms_state(document_id: str, terms_updates: List[Dict], db: Session = Depends(get_db)):
+    """
+    Przywróć stan terminów z wcześniej zapisanego projektu.
+
+    Args:
+        document_id: ID dokumentu
+        terms_updates: Lista terminów z ich stanami
+        db: Sesja bazy danych
+
+    Returns:
+        Podsumowanie przywrócenia
+    """
+    # Sprawdź czy dokument istnieje
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    updated_count = 0
+    not_found_count = 0
+
+    for term_data in terms_updates:
+        term_id = term_data.get("id")
+        if not term_id:
+            continue
+
+        # Znajdź termin w bazie
+        term = db.query(models.Term).filter(
+            models.Term.id == term_id,
+            models.Term.document_id == document_id
+        ).first()
+
+        if term:
+            # Przywróć stan
+            if "target_term" in term_data:
+                term.target_term = term_data["target_term"]
+            if "status" in term_data:
+                term.status = term_data["status"]
+            if "original_proposal" in term_data:
+                term.original_proposal = term_data["original_proposal"]
+            term.updated_at = datetime.now()
+            updated_count += 1
+        else:
+            not_found_count += 1
+
+    db.commit()
+
+    return {
+        "message": f"Przywrócono stan {updated_count} terminów",
+        "updated": updated_count,
+        "not_found": not_found_count,
+    }
+
+
 @router.get("/{document_id}/export/approved/html")
 async def export_approved_terms_html(document_id: str, db: Session = Depends(get_db)):
     """
