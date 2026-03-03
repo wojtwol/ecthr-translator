@@ -1,6 +1,7 @@
 """Router dla zarządzania Translation Memory (TMX)."""
 
 import logging
+import re
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -8,6 +9,53 @@ import shutil
 from sqlalchemy.orm import Session
 
 from config import settings
+
+
+def split_into_sentences(text: str) -> list[str]:
+    """
+    Dzieli tekst na zdania.
+
+    Używa regex do wykrywania granic zdań, uwzględniając:
+    - Skróty (Mr., Mrs., Dr., etc.)
+    - Numery artykułów (Article 6, art. 3)
+    - Cytaty i nawiasy
+
+    Args:
+        text: Tekst do podzielenia
+
+    Returns:
+        Lista zdań
+    """
+    if not text or not text.strip():
+        return []
+
+    # Wzorce które NIE są końcem zdania
+    # Skróty angielskie i polskie
+    abbreviations = r'(?:Mr|Mrs|Ms|Dr|Prof|Inc|Ltd|Jr|Sr|vs|etc|i\.e|e\.g|art|Art|par|Par|ust|pkt|lit|zob|por|np|tj|tzw|m\.in|ww|jw|ok|ul|al|pl|os|im)'
+
+    # Najpierw zamień skróty na placeholdery
+    placeholder = "<<<ABBR>>>"
+    text_processed = re.sub(
+        rf'\b({abbreviations})\.',
+        rf'\1{placeholder}',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # Zamień też numery z kropką (np. "1.", "2.") które nie kończą zdania
+    text_processed = re.sub(r'(\d+)\.(\s*\d)', rf'\1{placeholder}\2', text_processed)
+
+    # Teraz podziel na zdania
+    # Zdanie kończy się: . ! ? po którym następuje spacja i wielka litera lub koniec tekstu
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-ZŻŹĆĄŚĘŁÓŃ])', text_processed)
+
+    # Przywróć skróty
+    sentences = [s.replace(placeholder, '.').strip() for s in sentences]
+
+    # Filtruj puste zdania i bardzo krótkie (mniej niż 10 znaków)
+    sentences = [s for s in sentences if s and len(s) >= 10]
+
+    return sentences
 from services.tm_manager import TMManager
 from db.database import get_db
 from db import models
@@ -243,19 +291,45 @@ async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
 
         # Utwórz nowy TMManager i dodaj segmenty z projektu
         tm_manager = TMManager()
+        sentence_count = 0
+
         for seg in segments:
             if seg.source_text and seg.target_text:
-                # Dodaj metadata z informacją o źródle
-                metadata = {
-                    "document_id": document_id,
-                    "document_name": db_document.filename,
-                    "segment_index": str(seg.index),
-                }
-                tm_manager.add_entry(
-                    source=seg.source_text,
-                    target=seg.target_text,
-                    metadata=metadata
-                )
+                # Podziel segmenty na zdania (1 segment TM = 1 zdanie)
+                source_sentences = split_into_sentences(seg.source_text)
+                target_sentences = split_into_sentences(seg.target_text)
+
+                # Jeśli liczba zdań się zgadza, sparuj je 1:1
+                if len(source_sentences) == len(target_sentences) and len(source_sentences) > 0:
+                    for i, (src_sent, tgt_sent) in enumerate(zip(source_sentences, target_sentences)):
+                        metadata = {
+                            "document_id": document_id,
+                            "document_name": db_document.filename,
+                            "segment_index": str(seg.index),
+                            "sentence_index": str(i),
+                        }
+                        tm_manager.add_entry(
+                            source=src_sent,
+                            target=tgt_sent,
+                            metadata=metadata
+                        )
+                        sentence_count += 1
+                else:
+                    # Jeśli liczba zdań się nie zgadza, dodaj cały segment
+                    # (bezpieczniejsze niż błędne parowanie)
+                    metadata = {
+                        "document_id": document_id,
+                        "document_name": db_document.filename,
+                        "segment_index": str(seg.index),
+                    }
+                    tm_manager.add_entry(
+                        source=seg.source_text,
+                        target=seg.target_text,
+                        metadata=metadata
+                    )
+                    sentence_count += 1
+
+        logger.info(f"Split {len(segments)} segments into {sentence_count} TM entries (sentences)")
 
         # Zapisz do pliku TMX
         export_filename = f"tm_export_{document_id}.tmx"
@@ -320,31 +394,43 @@ async def update_tm_from_project(document_id: str, db: Session = Depends(get_db)
         tm_manager = TMManager()
         existing_count = tm_manager.load()
 
-        # Dodaj nowe segmenty z projektu
+        # Dodaj nowe segmenty z projektu (podzielone na zdania)
         added_count = 0
         skipped_count = 0
 
         for seg in segments:
             if seg.source_text and seg.target_text:
-                # Sprawdź czy już istnieje dokładne dopasowanie
-                existing = tm_manager.find_exact(seg.source_text)
+                # Podziel segmenty na zdania (1 segment TM = 1 zdanie)
+                source_sentences = split_into_sentences(seg.source_text)
+                target_sentences = split_into_sentences(seg.target_text)
 
-                if existing is None:
-                    # Dodaj nowy wpis
-                    metadata = {
-                        "source": "project",
-                        "document_id": document_id,
-                        "document_name": db_document.filename,
-                    }
-                    tm_manager.add_entry(
-                        source=seg.source_text,
-                        target=seg.target_text,
-                        metadata=metadata
-                    )
-                    added_count += 1
+                # Przygotuj pary do dodania
+                if len(source_sentences) == len(target_sentences) and len(source_sentences) > 0:
+                    pairs = list(zip(source_sentences, target_sentences))
                 else:
-                    skipped_count += 1
-                    logger.debug(f"Skipped duplicate segment: {seg.source_text[:50]}...")
+                    # Fallback: cały segment jako jedna para
+                    pairs = [(seg.source_text, seg.target_text)]
+
+                for src, tgt in pairs:
+                    # Sprawdź czy już istnieje dokładne dopasowanie
+                    existing = tm_manager.find_exact(src)
+
+                    if existing is None:
+                        # Dodaj nowy wpis
+                        metadata = {
+                            "source": "project",
+                            "document_id": document_id,
+                            "document_name": db_document.filename,
+                        }
+                        tm_manager.add_entry(
+                            source=src,
+                            target=tgt,
+                            metadata=metadata
+                        )
+                        added_count += 1
+                    else:
+                        skipped_count += 1
+                        logger.debug(f"Skipped duplicate sentence: {src[:50]}...")
 
         # Zapisz zaktualizowaną TM do głównego pliku
         tm_manager.save("ecthr_translator.tmx")
