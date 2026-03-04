@@ -40,6 +40,27 @@ const TranslationPage = () => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [glossaryRefreshTrigger, setGlossaryRefreshTrigger] = useState(0);
 
+  // State for adding term from text selection
+  const [pendingTermSource, setPendingTermSource] = useState('');
+  const [pendingTermTarget, setPendingTermTarget] = useState('');
+
+  // Callback from TranslationPreview when user selects text
+  const handleAddTermFromSelection = (sourceTerm, targetTerm) => {
+    setPendingTermSource(sourceTerm);
+    setPendingTermTarget(targetTerm);
+    // Switch to split view if in preview-only mode
+    if (view === 'preview') {
+      setView('split');
+    }
+  };
+
+  // Callback when term is added successfully
+  const handleTermAdded = () => {
+    setPendingTermSource('');
+    setPendingTermTarget('');
+    setGlossaryRefreshTrigger(prev => prev + 1);
+  };
+
   // Polling backup for terms when WebSocket fails during validation
   // IMPORTANT: Also refresh GlossaryPanel to show newly extracted terms
   useEffect(() => {
@@ -661,6 +682,9 @@ const TranslationPage = () => {
                 onTermSelect={handleTermSelect}
                 onApproveAll={refreshTerms}
                 refreshTrigger={glossaryRefreshTrigger}
+                initialSourceTerm={pendingTermSource}
+                initialTargetTerm={pendingTermTarget}
+                onTermAdded={handleTermAdded}
               />
             </div>
           </>
@@ -845,6 +869,9 @@ const TranslationPage = () => {
                   onTermSelect={handleTermSelect}
                   onApproveAll={refreshTerms}
                   refreshTrigger={glossaryRefreshTrigger}
+                  initialSourceTerm={pendingTermSource}
+                  initialTargetTerm={pendingTermTarget}
+                  onTermAdded={handleTermAdded}
                 />
               </div>
             )}
@@ -858,6 +885,7 @@ const TranslationPage = () => {
                   onTermClick={handleTermSelect}
                   documentId={documentId}
                   onSegmentUpdate={refreshSegments}
+                  onAddTermFromSelection={handleAddTermFromSelection}
                 />
               </div>
             )}

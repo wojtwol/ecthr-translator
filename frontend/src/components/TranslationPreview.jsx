@@ -1,9 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmentUpdate }) => {
+const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmentUpdate, onAddTermFromSelection }) => {
   const [editingSegment, setEditingSegment] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Selection state for adding terms
+  const [selection, setSelection] = useState(null);
+  const [selectionPosition, setSelectionPosition] = useState(null);
+  const containerRef = useRef(null);
+
+  // Handle text selection
+  const handleMouseUp = (e) => {
+    const selectedText = window.getSelection()?.toString().trim();
+
+    if (selectedText && selectedText.length > 1 && selectedText.length < 100) {
+      // Determine if selection is from source or target column
+      const target = e.target;
+      const isSourceColumn = target.closest('.source-column');
+      const isTargetColumn = target.closest('.target-column');
+
+      if (isSourceColumn || isTargetColumn) {
+        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
+        if (rect) {
+          setSelection({
+            text: selectedText,
+            isSource: !!isSourceColumn,
+          });
+          setSelectionPosition({
+            top: rect.bottom + window.scrollY + 5,
+            left: rect.left + window.scrollX,
+          });
+        }
+      }
+    }
+  };
+
+  // Clear selection when clicking elsewhere
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.selection-popup')) {
+        setSelection(null);
+        setSelectionPosition(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle adding term from selection
+  const handleAddFromSelection = () => {
+    if (selection && onAddTermFromSelection) {
+      onAddTermFromSelection(
+        selection.isSource ? selection.text : '',
+        selection.isSource ? '' : selection.text
+      );
+      setSelection(null);
+      setSelectionPosition(null);
+      window.getSelection()?.removeAllRanges();
+    }
+  };
 
   const handleDoubleClick = (segment) => {
     if (!segment.id) return; // Can't edit without segment ID
@@ -146,22 +203,49 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white rounded-lg shadow relative" ref={containerRef} onMouseUp={handleMouseUp}>
+      {/* Selection popup */}
+      {selection && selectionPosition && (
+        <div
+          className="selection-popup fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-2"
+          style={{
+            top: selectionPosition.top,
+            left: selectionPosition.left,
+          }}
+        >
+          <div className="text-xs text-gray-500 mb-1">
+            {selection.isSource ? 'Tekst zrodlowy:' : 'Tekst docelowy:'}
+          </div>
+          <div className="text-sm font-medium text-gray-900 mb-2 max-w-xs truncate">
+            "{selection.text}"
+          </div>
+          <button
+            onClick={handleAddFromSelection}
+            className="w-full px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+          >
+            + Dodaj jako termin
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">
-          📄 Podgląd tłumaczenia
+          Podglad tlumaczenia
         </h3>
+        <p className="text-xs text-gray-500 mt-1">
+          Zaznacz tekst aby dodac go jako termin do glosariusza
+        </p>
       </div>
 
       {/* Parallel Content - Two Columns with Synchronized Segments */}
       <div className="grid grid-cols-2 gap-0 max-h-[600px] overflow-y-auto">
         {/* Column Headers */}
         <div className="sticky top-0 z-10 bg-gray-50 border-r border-b border-gray-200 p-3">
-          <h4 className="font-semibold text-sm text-gray-700">📄 Tekst źródłowy (EN)</h4>
+          <h4 className="font-semibold text-sm text-gray-700">Tekst zrodlowy (EN)</h4>
         </div>
         <div className="sticky top-0 z-10 bg-white border-b border-gray-200 p-3">
-          <h4 className="font-semibold text-sm text-blue-700">🌍 Tłumaczenie (PL)</h4>
+          <h4 className="font-semibold text-sm text-blue-700">Tlumaczenie (PL)</h4>
         </div>
 
         {/* Segments - Display in parallel rows */}
@@ -169,7 +253,7 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
           segments.map((segment, index) => (
             <React.Fragment key={index}>
               {/* Source segment */}
-              <div className="border-r border-b border-gray-200 p-4 bg-gray-50">
+              <div className="source-column border-r border-b border-gray-200 p-4 bg-gray-50">
                 <div className="text-sm text-gray-900">
                   {segment.source ? (
                     highlightTerms(segment.source, terms, true)
@@ -181,9 +265,9 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
 
               {/* Target segment */}
               <div
-                className="border-b border-gray-200 p-4 bg-white hover:bg-blue-50 transition-colors cursor-pointer group relative"
+                className="target-column border-b border-gray-200 p-4 bg-white hover:bg-blue-50 transition-colors cursor-pointer group relative"
                 onDoubleClick={() => handleDoubleClick(segment)}
-                title="Kliknij dwukrotnie aby edytować"
+                title="Kliknij dwukrotnie aby edytowac"
               >
                 {editingSegment && editingSegment.id === segment.id ? (
                   <div className="space-y-2">

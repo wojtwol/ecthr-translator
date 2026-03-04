@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ProgressBar from './ProgressBar';
 
-const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger }) => {
+const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger, initialSourceTerm, initialTargetTerm, onTermAdded }) => {
   const [terms, setTerms] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,6 +12,22 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
   const [showSessionInfo, setShowSessionInfo] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
   const fileInputRef = useRef(null);
+
+  // Modal state for adding manual terms
+  const [showAddTermModal, setShowAddTermModal] = useState(false);
+  const [newTermSource, setNewTermSource] = useState('');
+  const [newTermTarget, setNewTermTarget] = useState('');
+  const [newTermContext, setNewTermContext] = useState('');
+  const [addingTerm, setAddingTerm] = useState(false);
+
+  // Handle initial term from text selection
+  useEffect(() => {
+    if (initialSourceTerm || initialTargetTerm) {
+      setNewTermSource(initialSourceTerm || '');
+      setNewTermTarget(initialTargetTerm || '');
+      setShowAddTermModal(true);
+    }
+  }, [initialSourceTerm, initialTargetTerm]);
 
   // Load saved session on mount
   useEffect(() => {
@@ -241,6 +257,53 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
     event.target.value = '';
   };
 
+  // Add manual term
+  const handleAddManualTerm = async () => {
+    if (!newTermSource.trim() || !newTermTarget.trim()) {
+      alert('Wypelnij termin zrodlowy i docelowy');
+      return;
+    }
+
+    setAddingTerm(true);
+    try {
+      const response = await fetch(
+        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/terms`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_term: newTermSource.trim(),
+            target_term: newTermTarget.trim(),
+            context: newTermContext.trim() || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || `HTTP ${response.status}`);
+      }
+
+      // Reset form and close modal
+      setNewTermSource('');
+      setNewTermTarget('');
+      setNewTermContext('');
+      setShowAddTermModal(false);
+
+      // Refresh terms list
+      fetchTerms();
+
+      // Notify parent if callback provided
+      if (onTermAdded) onTermAdded();
+
+    } catch (error) {
+      console.error('Failed to add term:', error);
+      alert(`Blad dodawania terminu: ${error.message}`);
+    } finally {
+      setAddingTerm(false);
+    }
+  };
+
   const handleApproveAll = async () => {
     if (!confirm(`Czy na pewno zatwierdzic wszystkie ${stats?.pending} oczekujace terminy?`)) {
       return;
@@ -332,6 +395,15 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
             Terminologia ({stats?.total || 0})
           </h2>
           <div className="flex items-center gap-2">
+            {/* Przycisk dodawania terminu */}
+            <button
+              onClick={() => setShowAddTermModal(true)}
+              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+              title="Dodaj nowy termin recznie"
+            >
+              + Dodaj termin
+            </button>
+
             {/* Przyciski zapisu/wczytania projektu */}
             <button
               onClick={handleDownloadProject}
@@ -556,6 +628,85 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger 
             >
               Nastepna
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for adding manual term */}
+      {showAddTermModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Dodaj nowy termin
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Termin zrodlowy (EN) *
+                </label>
+                <input
+                  type="text"
+                  value={newTermSource}
+                  onChange={(e) => setNewTermSource(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="np. applicant"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Termin docelowy (PL) *
+                </label>
+                <input
+                  type="text"
+                  value={newTermTarget}
+                  onChange={(e) => setNewTermTarget(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="np. skarżący"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Kontekst (opcjonalnie)
+                </label>
+                <textarea
+                  value={newTermContext}
+                  onChange={(e) => setNewTermContext(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={2}
+                  placeholder="np. zdanie w ktorym wystepuje termin"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddTermModal(false);
+                  setNewTermSource('');
+                  setNewTermTarget('');
+                  setNewTermContext('');
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={addingTerm}
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleAddManualTerm}
+                disabled={addingTerm || !newTermSource.trim() || !newTermTarget.trim()}
+                className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                  addingTerm || !newTermSource.trim() || !newTermTarget.trim()
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-purple-600 hover:bg-purple-700'
+                }`}
+              >
+                {addingTerm ? 'Dodawanie...' : 'Dodaj termin'}
+              </button>
+            </div>
           </div>
         </div>
       )}

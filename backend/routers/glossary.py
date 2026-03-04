@@ -21,6 +21,7 @@ from models.term import (
     SourceReportItem,
     GlossarySessionCreate,
     GlossarySessionResponse,
+    ManualTermCreate,
 )
 from db.database import get_db
 from db import models
@@ -123,6 +124,76 @@ async def get_glossary(
         total=query.count() if status != "all" else len(all_terms),
         stats=stats,
         terms=terms_list,
+    )
+
+
+@router.post("/{document_id}/terms", response_model=Term)
+async def create_manual_term(
+    document_id: str,
+    term_data: ManualTermCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a manual term (added by user).
+
+    Args:
+        document_id: Document ID
+        term_data: Term data (source_term, target_term, context, notes)
+        db: Database session
+
+    Returns:
+        Created term
+    """
+    # Verify document exists
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Check if term already exists
+    existing_term = db.query(models.Term).filter(
+        models.Term.document_id == document_id,
+        models.Term.source_term == term_data.source_term
+    ).first()
+
+    if existing_term:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Termin '{term_data.source_term}' juz istnieje w glosariuszu"
+        )
+
+    # Create new term
+    new_term = models.Term(
+        id=str(uuid.uuid4()),
+        document_id=document_id,
+        source_term=term_data.source_term,
+        target_term=term_data.target_term,
+        original_proposal=term_data.target_term,
+        source_type="manual",
+        confidence=1.0,
+        status="approved",  # Manual terms are auto-approved
+        references={"context": term_data.context, "notes": term_data.notes} if term_data.context or term_data.notes else None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    db.add(new_term)
+    db.commit()
+    db.refresh(new_term)
+
+    return Term(
+        id=new_term.id,
+        document_id=new_term.document_id,
+        source_term=new_term.source_term,
+        target_term=new_term.target_term,
+        original_proposal=new_term.original_proposal,
+        source_type=new_term.source_type,
+        confidence=new_term.confidence,
+        status=new_term.status,
+        context=term_data.context,
+        references=[],
+        sources=[],
+        created_at=new_term.created_at,
+        updated_at=new_term.updated_at,
     )
 
 

@@ -10,12 +10,13 @@ class TermSource(str, Enum):
     """Source of the term translation."""
 
     TM_EXACT = "tm_exact"
-    TM_PREFIX = "tm_prefix"  # Prefix match (e.g., "Article" → "art." applied to "Article 44 § 2" → "art. 44 § 2")
+    TM_PREFIX = "tm_prefix"  # Prefix match (e.g., "Article" -> "art." applied to "Article 44 2" -> "art. 44 2")
     TM_FUZZY = "tm_fuzzy"
     HUDOC = "hudoc"
     CURIA = "curia"
     IATE = "iate"
     PROPOSED = "proposed"
+    MANUAL = "manual"  # Manually added by user
 
 
 class TermStatus(str, Enum):
@@ -131,6 +132,15 @@ class SourceReport(BaseModel):
     tm_exact_terms: List[SourceReportItem] = []
     tm_fuzzy_terms: List[SourceReportItem] = []
     proposed_terms: List[SourceReportItem] = []
+
+
+class ManualTermCreate(BaseModel):
+    """Request to create a manual term."""
+
+    source_term: str
+    target_term: str
+    context: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class GlossarySessionCreate(BaseModel):
