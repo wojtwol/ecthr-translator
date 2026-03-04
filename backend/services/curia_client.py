@@ -68,6 +68,24 @@ class CURIAClient:
         try:
             # CRITICAL: Strip articles before searching (databases don't include them)
             search_term = self._strip_articles(term)
+
+            # CRITICAL: Skip very short or generic terms
+            # Single words under 5 chars are too generic for CURIA (e.g., "law", "act", "rule")
+            word_count = len(search_term.split())
+            if word_count == 1 and len(search_term) < 5:
+                logger.info(f"Skipping CURIA search for too-short single word: '{search_term}'")
+                return []
+
+            # Skip common generic legal terms that appear in every document
+            generic_terms = {
+                'law', 'act', 'rule', 'case', 'court', 'right', 'state', 'party',
+                'judge', 'order', 'claim', 'fact', 'point', 'issue', 'matter',
+                'time', 'date', 'year', 'day', 'person', 'body', 'member'
+            }
+            if search_term.lower() in generic_terms:
+                logger.info(f"Skipping CURIA search for generic term: '{search_term}'")
+                return []
+
             logger.info(f"Searching CURIA for term: '{term}' (normalized: '{search_term}')")
 
             # Uproszczone wyszukiwanie - w pełnej wersji używałby API CURIA
@@ -132,13 +150,32 @@ class CURIAClient:
         if query_norm == known_norm:
             return 1.0
 
-        # Check if one is substring of another
+        # CRITICAL FIX: Single words should NEVER match as substrings of multi-word phrases
+        # "law" should NOT match "competition law" - they are completely different concepts
+        query_word_count = len(query_term.split())
+        known_word_count = len(known_term.split())
+
+        # Check if one is substring of another (only for multi-word terms)
         if query_norm in known_norm:
+            # REJECT single-word queries matching multi-word terms as substrings
+            # "law" in "competition law" = REJECT (1 word in 2 words)
+            if query_word_count == 1 and known_word_count > 1:
+                return 0.0  # Reject - single word can't match as substring of phrase
+
             coverage = len(query_norm) / len(known_norm)
+            # Only accept high coverage (>70%) for substring matches
+            if coverage < 0.7:
+                return 0.0
             return 0.85 + (coverage * 0.15)
 
         if known_norm in query_norm:
+            # REJECT multi-word terms matching single-word queries as substrings
+            if known_word_count == 1 and query_word_count > 1:
+                return 0.0  # Reject
+
             coverage = len(known_norm) / len(query_norm)
+            if coverage < 0.7:
+                return 0.0
             return 0.80 + (coverage * 0.15)
 
         # Keyword-based matching
