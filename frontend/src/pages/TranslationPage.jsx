@@ -261,11 +261,13 @@ const TranslationPage = () => {
                 </button>
               </div>
 
-              {translationStatus === 'validating' && stats && (stats.pending === 0 || (stats.approved > 0 || stats.edited > 0)) && (
+              {(translationStatus === 'validating' || translationStatus === 'completed') && stats && (stats.pending === 0 || (stats.approved > 0 || stats.edited > 0)) && (
                 <button
                   onClick={handleFinalize}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md"
-                  title={stats.pending > 0 ? `Uwaga: ${stats.pending} terminów wciąż do zatwierdzenia` : 'Wszystkie terminy zatwierdzone - gotowe do finalizacji'}
+                  title={translationStatus === 'completed'
+                    ? 'Ponów tłumaczenie ze zaktualizowaną terminologią'
+                    : (stats.pending > 0 ? `Uwaga: ${stats.pending} terminów wciąż do zatwierdzenia` : 'Wszystkie terminy zatwierdzone - gotowe do finalizacji')}
                 >
                   🔄 Przetłumacz z zatwierdzoną terminologią
                   {stats.approved + stats.edited > 0 && ` (${stats.approved + stats.edited} terminów)`}

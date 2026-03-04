@@ -188,7 +188,9 @@ async def finalize_translation(document_id: str, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="No translation job found")
 
-    if job.status != TranslationJobStatus.AWAITING_VALIDATION:
+    # Allow finalization when awaiting validation OR when completed (re-finalization after more edits)
+    allowed_statuses = [TranslationJobStatus.AWAITING_VALIDATION, TranslationJobStatus.COMPLETED]
+    if job.status not in allowed_statuses:
         raise HTTPException(
             status_code=400,
             detail=f"Translation not ready for finalization. Current status: {job.status}",
@@ -198,7 +200,7 @@ async def finalize_translation(document_id: str, db: Session = Depends(get_db)):
     job.status = TranslationJobStatus.FINALIZING
     job.phase = TranslationPhase.IMPLEMENTING
     job.progress = 0.9
-    job.current_step = "Finalizing translation..."
+    job.current_step = "Finalizing translation with validated terminology..."
     db.commit()
 
     # Start finalization in background
