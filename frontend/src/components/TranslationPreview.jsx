@@ -12,41 +12,59 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
 
   // Handle text selection
   const handleMouseUp = (e) => {
-    const selectedText = window.getSelection()?.toString().trim();
+    // Small delay to ensure selection is complete
+    setTimeout(() => {
+      const selectedText = window.getSelection()?.toString().trim();
 
-    if (selectedText && selectedText.length > 1 && selectedText.length < 100) {
-      // Determine if selection is from source or target column
-      const target = e.target;
-      const isSourceColumn = target.closest('.source-column');
-      const isTargetColumn = target.closest('.target-column');
+      console.log('[TranslationPreview] Selection:', selectedText);
 
-      if (isSourceColumn || isTargetColumn) {
-        const rect = window.getSelection()?.getRangeAt(0)?.getBoundingClientRect();
-        if (rect) {
-          setSelection({
-            text: selectedText,
-            isSource: !!isSourceColumn,
-          });
-          setSelectionPosition({
-            top: rect.bottom + window.scrollY + 5,
-            left: rect.left + window.scrollX,
-          });
+      if (selectedText && selectedText.length > 1 && selectedText.length < 100) {
+        // Determine if selection is from source or target column
+        const target = e.target;
+        const isSourceColumn = target.closest('.source-column');
+        const isTargetColumn = target.closest('.target-column');
+
+        console.log('[TranslationPreview] isSourceColumn:', !!isSourceColumn, 'isTargetColumn:', !!isTargetColumn);
+
+        if (isSourceColumn || isTargetColumn) {
+          const selectionObj = window.getSelection();
+          if (selectionObj && selectionObj.rangeCount > 0) {
+            const rect = selectionObj.getRangeAt(0).getBoundingClientRect();
+            console.log('[TranslationPreview] Selection rect:', rect);
+            if (rect && rect.width > 0) {
+              setSelection({
+                text: selectedText,
+                isSource: !!isSourceColumn,
+              });
+              // Use viewport-relative position for fixed positioning
+              setSelectionPosition({
+                top: rect.bottom + 5,
+                left: rect.left,
+              });
+            }
+          }
         }
       }
-    }
+    }, 10);
   };
 
-  // Clear selection when clicking elsewhere
+  // Clear selection when clicking elsewhere (but not during text selection)
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (!e.target.closest('.selection-popup')) {
+      // Don't clear if clicking on popup or during selection
+      if (e.target.closest('.selection-popup')) {
+        return;
+      }
+      // Clear only if there's no text selected
+      const selectedText = window.getSelection()?.toString().trim();
+      if (!selectedText) {
         setSelection(null);
         setSelectionPosition(null);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // Handle adding term from selection
@@ -207,10 +225,11 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
       {/* Selection popup */}
       {selection && selectionPosition && (
         <div
-          className="selection-popup fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-2"
+          className="selection-popup fixed bg-white rounded-lg shadow-xl border-2 border-purple-300 p-3"
           style={{
             top: selectionPosition.top,
             left: selectionPosition.left,
+            zIndex: 9999,
           }}
         >
           <div className="text-xs text-gray-500 mb-1">
@@ -221,7 +240,7 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
           </div>
           <button
             onClick={handleAddFromSelection}
-            className="w-full px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+            className="w-full px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors shadow-md"
           >
             + Dodaj jako termin
           </button>

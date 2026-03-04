@@ -394,11 +394,11 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
           <h2 className="text-xl font-semibold text-gray-900">
             Terminologia ({stats?.total || 0})
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Przycisk dodawania terminu */}
             <button
               onClick={() => setShowAddTermModal(true)}
-              className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+              className="h-9 px-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center"
               title="Dodaj nowy termin recznie"
             >
               + Dodaj termin
@@ -408,7 +408,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
             <button
               onClick={handleDownloadProject}
               disabled={saveStatus === 'saving'}
-              className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+              className={`h-9 px-3 rounded-lg transition-colors text-sm font-medium flex items-center ${
                 saveStatus === 'saved'
                   ? 'bg-green-100 text-green-700'
                   : saveStatus === 'error'
@@ -433,7 +433,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={saveStatus === 'saving'}
-              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              className="h-9 px-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium flex items-center"
               title="Wczytaj zapisany projekt (JSON)"
             >
               Wczytaj projekt
@@ -442,7 +442,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
             {sessionId && (
               <button
                 onClick={completeSession}
-                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                className="h-9 px-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium flex items-center"
                 title="Zakoncz sesje i zacznij od nowa przy nastepnym wejsciu"
               >
                 Zakoncz sesje
@@ -452,7 +452,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
             {stats && stats.pending > 0 && (
               <button
                 onClick={handleApproveAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                className="h-9 px-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center"
               >
                 Zatwierdz wszystkie ({stats.pending})
               </button>
