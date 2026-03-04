@@ -87,6 +87,7 @@ friendly settlement – ugoda lub polubowne załatwienie sprawy
 Government – Rząd (a nie Władze Państwowe) (nb. w praktyce Trybunału słowo "the Government" jest stosowane zwyczajowo jako liczba mnoga, po polsku – stosować liczbę pojedynczą)
 [GC] – [WI] lub [Wielka Izba] / skrót od Grand Chamber/
 High Contracting Parties – Wysokie Układające się Strony (nie: Umawiające się)
+Having regard to – Uwzględniając (np. "Having regard to the Convention" → "Uwzględniając Konwencję")
 inadmissibility decision – decyzja o niedopuszczalności
 individual or general measures – środki indywidualne lub generalne [gdy dotyczy kontekstu wykonywania wyroków Trybunału – art. 46 Konwencji]
 interference – ingerencja (nie: "naruszenie", gdyż nie każda ingerencja jest automatycznie naruszeniem Konwencji, czyli "violation")
@@ -119,7 +120,7 @@ preliminary issue – zagadnienie wstępne
 preliminary objection – zastrzeżenie wstępne
 President of the European Court of Human Rights – tradycyjnie tłumaczone jako: Prezes Europejskiego Trybunału Praw Człowieka
 Section President – Przewodniczący Sekcji
-President – Przewodniczący (gdy w kontekście składu orzekającego Trybunału w danej sprawie)
+President – Przewodniczący lub Przewodnicząca (gdy w kontekście składu orzekającego Trybunału w danej sprawie; stosować formę zgodną z płcią sędziego)
 Protokół nr 1 do Konwencji, itp. (nie: "Nr")
 pursue a legitimate aim – dążyć do (realizacji) uprawnionego celu
 reasonable relationship of proportionality – pozostawać w rozsądnej proporcji do ...
