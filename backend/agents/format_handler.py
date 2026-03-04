@@ -3,11 +3,16 @@
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 import logging
+from lxml import etree
 
 logger = logging.getLogger(__name__)
+
+# XML namespaces used in DOCX
+WORD_NAMESPACE = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
 # Lazy import to avoid circular dependencies
 _citation_detector = None
@@ -149,6 +154,30 @@ class FormatHandler:
                             }
                             segments.append(segment)
 
+            # Extract footnotes
+            footnotes = self._extract_footnotes(doc)
+            for footnote in footnotes:
+                segment = {
+                    "index": len(segments),
+                    "text": footnote["text"],
+                    "format": {"style": "Footnote Text"},
+                    "parent_type": "footnote",
+                    "footnote_id": footnote["footnote_id"],
+                }
+                segments.append(segment)
+
+            # Extract endnotes
+            endnotes = self._extract_endnotes(doc)
+            for endnote in endnotes:
+                segment = {
+                    "index": len(segments),
+                    "text": endnote["text"],
+                    "format": {"style": "Endnote Text"},
+                    "parent_type": "endnote",
+                    "endnote_id": endnote["endnote_id"],
+                }
+                segments.append(segment)
+
             document_metadata = self._extract_document_metadata(doc)
 
             logger.info(f"Extracted {len(segments)} segments from {source_path}")
@@ -218,6 +247,11 @@ class FormatHandler:
                     para.text = cleaned_text
                     self._apply_paragraph_format(para, segment.get("format", {}), has_citations=has_citations)
 
+                elif parent_type in ("footnote", "endnote"):
+                    # Footnotes and endnotes will be collected and added at the end
+                    # This is a simplified approach - full footnote reconstruction requires XML manipulation
+                    pass  # Handle separately below
+
                 elif parent_type == "table_cell":
                     # Store table segments for later reconstruction
                     table_pos = segment.get("table_position", {})
@@ -264,6 +298,59 @@ class FormatHandler:
                             # Apply citation color to table cell text
                             for run in para.runs:
                                 run.font.color.rgb = RGBColor(255, 140, 0)  # Orange color
+
+            # Reconstruct footnotes and endnotes as a section at the end
+            # (Full footnote reconstruction with proper references requires XML manipulation)
+            footnote_segments = [s for s in translated_segments if s.get("parent_type") == "footnote"]
+            endnote_segments = [s for s in translated_segments if s.get("parent_type") == "endnote"]
+
+            if footnote_segments:
+                # Add footnotes section header
+                doc.add_paragraph()  # Empty line
+                header_para = doc.add_paragraph()
+                header_run = header_para.add_run("PRZYPISY / FOOTNOTES")
+                header_run.bold = True
+                header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                for segment in footnote_segments:
+                    footnote_id = segment.get("footnote_id", "?")
+                    translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+                    cleaned_text = self._clean_and_format_text(translated_text)
+
+                    # Format: [1] Footnote text...
+                    para = doc.add_paragraph()
+                    footnote_marker = para.add_run(f"[{footnote_id}] ")
+                    footnote_marker.bold = True
+                    para.add_run(cleaned_text)
+
+                    # Apply footnote style formatting (smaller font)
+                    for run in para.runs:
+                        run.font.size = Pt(10)
+
+                logger.info(f"Added {len(footnote_segments)} footnotes to document")
+
+            if endnote_segments:
+                # Add endnotes section header
+                doc.add_paragraph()  # Empty line
+                header_para = doc.add_paragraph()
+                header_run = header_para.add_run("PRZYPISY KOŃCOWE / ENDNOTES")
+                header_run.bold = True
+                header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                for segment in endnote_segments:
+                    endnote_id = segment.get("endnote_id", "?")
+                    translated_text = segment.get("target_text") or segment.get("translated_text") or segment.get("text", "")
+                    cleaned_text = self._clean_and_format_text(translated_text)
+
+                    para = doc.add_paragraph()
+                    endnote_marker = para.add_run(f"[{endnote_id}] ")
+                    endnote_marker.bold = True
+                    para.add_run(cleaned_text)
+
+                    for run in para.runs:
+                        run.font.size = Pt(10)
+
+                logger.info(f"Added {len(endnote_segments)} endnotes to document")
 
             # Save document
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -347,3 +434,128 @@ class FormatHandler:
             "styles": [style.name for style in doc.styles],
         }
         return metadata
+
+    def _extract_footnotes(self, doc) -> List[Dict[str, Any]]:
+        """
+        Extract footnotes from DOCX document.
+
+        Footnotes are stored in word/footnotes.xml in the DOCX package.
+        This method accesses them via the underlying XML.
+
+        Args:
+            doc: python-docx Document object
+
+        Returns:
+            List of footnote segments with their IDs and text
+        """
+        footnotes = []
+
+        try:
+            # Access the footnotes part through the document part's related parts
+            # The footnotes are stored in a separate XML file within the DOCX package
+            for rel in doc.part.rels.values():
+                if "footnotes" in rel.reltype:
+                    footnotes_part = rel.target_part
+                    footnotes_xml = footnotes_part._element
+
+                    # Find all footnote elements (w:footnote)
+                    for footnote_elem in footnotes_xml.findall(f'{WORD_NAMESPACE}footnote'):
+                        footnote_id = footnote_elem.get(f'{WORD_NAMESPACE}id')
+
+                        # Skip special footnotes (separator, continuation separator)
+                        footnote_type = footnote_elem.get(f'{WORD_NAMESPACE}type')
+                        if footnote_type in ['separator', 'continuationSeparator']:
+                            continue
+
+                        # Extract text from all paragraphs in the footnote
+                        footnote_text_parts = []
+                        for para_elem in footnote_elem.findall(f'.//{WORD_NAMESPACE}p'):
+                            para_text = self._get_paragraph_text_from_xml(para_elem)
+                            if para_text.strip():
+                                footnote_text_parts.append(para_text)
+
+                        footnote_text = '\n'.join(footnote_text_parts)
+
+                        if footnote_text.strip():
+                            footnotes.append({
+                                "footnote_id": footnote_id,
+                                "text": footnote_text.strip(),
+                            })
+
+                    logger.info(f"Extracted {len(footnotes)} footnotes from document")
+                    break
+
+        except Exception as e:
+            logger.warning(f"Could not extract footnotes: {e}")
+
+        return footnotes
+
+    def _extract_endnotes(self, doc) -> List[Dict[str, Any]]:
+        """
+        Extract endnotes from DOCX document.
+
+        Endnotes are stored in word/endnotes.xml in the DOCX package.
+
+        Args:
+            doc: python-docx Document object
+
+        Returns:
+            List of endnote segments with their IDs and text
+        """
+        endnotes = []
+
+        try:
+            for rel in doc.part.rels.values():
+                if "endnotes" in rel.reltype:
+                    endnotes_part = rel.target_part
+                    endnotes_xml = endnotes_part._element
+
+                    for endnote_elem in endnotes_xml.findall(f'{WORD_NAMESPACE}endnote'):
+                        endnote_id = endnote_elem.get(f'{WORD_NAMESPACE}id')
+
+                        # Skip special endnotes
+                        endnote_type = endnote_elem.get(f'{WORD_NAMESPACE}type')
+                        if endnote_type in ['separator', 'continuationSeparator']:
+                            continue
+
+                        # Extract text from all paragraphs
+                        endnote_text_parts = []
+                        for para_elem in endnote_elem.findall(f'.//{WORD_NAMESPACE}p'):
+                            para_text = self._get_paragraph_text_from_xml(para_elem)
+                            if para_text.strip():
+                                endnote_text_parts.append(para_text)
+
+                        endnote_text = '\n'.join(endnote_text_parts)
+
+                        if endnote_text.strip():
+                            endnotes.append({
+                                "endnote_id": endnote_id,
+                                "text": endnote_text.strip(),
+                            })
+
+                    logger.info(f"Extracted {len(endnotes)} endnotes from document")
+                    break
+
+        except Exception as e:
+            logger.warning(f"Could not extract endnotes: {e}")
+
+        return endnotes
+
+    def _get_paragraph_text_from_xml(self, para_elem) -> str:
+        """
+        Extract text from a paragraph XML element.
+
+        Args:
+            para_elem: lxml element representing w:p (paragraph)
+
+        Returns:
+            Concatenated text from all text runs
+        """
+        text_parts = []
+
+        # Find all text elements (w:t) within runs (w:r)
+        for text_elem in para_elem.findall(f'.//{WORD_NAMESPACE}t'):
+            if text_elem.text:
+                text_parts.append(text_elem.text)
+
+        return ''.join(text_parts)
