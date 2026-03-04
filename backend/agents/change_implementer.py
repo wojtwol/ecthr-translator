@@ -49,18 +49,22 @@ class ChangeImplementer:
         try:
             logger.info(f"Implementing changes for {len(validated_terms)} terms")
 
-            # FIXED: Aplikuj WSZYSTKIE zatwierdzone i edytowane terminy, nie tylko edited
-            # Użytkownik zatwierdza termin = chce go użyć w tłumaczeniu
+            # Separate approved/edited terms from rejected terms
             approved_terms = [
                 t for t in validated_terms
                 if t.get("status") in ["approved", "edited"]
             ]
 
-            if not approved_terms:
-                logger.info("No approved or edited terms to implement")
-                return segments
+            rejected_terms = [
+                t for t in validated_terms
+                if t.get("status") == "rejected"
+            ]
 
-            logger.info(f"Found {len(approved_terms)} approved/edited terms to implement")
+            logger.info(f"Found {len(approved_terms)} approved/edited terms, {len(rejected_terms)} rejected terms")
+
+            if not approved_terms and not rejected_terms:
+                logger.info("No terms to implement or avoid")
+                return segments
 
             # Stwórz mapowanie source_term -> target_term dla zatwierdzonych terminów
             terminology_map = {}
@@ -74,25 +78,31 @@ class ChangeImplementer:
             updated_segments = []
 
             for segment in segments:
-                # FIXED: Sprawdź czy segment zawiera jakieś zatwierdzone terminy
-                # w ANGIELSKIM TEKŚCIE ŹRÓDŁOWYM (source_text), nie w polskim tłumaczeniu
+                # Check if segment contains any approved OR rejected terms
                 source_text = segment.get("source_text", "")
                 source_text_lower = source_text.lower()
-                relevant_terms = []
+
+                relevant_approved = []
+                relevant_rejected = []
 
                 for term in approved_terms:
-                    # Sprawdź czy angielski termin występuje w angielskim źródle
                     source_term = term.get("source_term", "")
                     if source_term and source_term.lower() in source_text_lower:
-                        relevant_terms.append(term)
+                        relevant_approved.append(term)
 
-                if relevant_terms:
-                    # Segment wymaga aktualizacji - przetłumacz ponownie z zatwierdzoną terminologią
-                    logger.info(f"Re-translating segment with {len(relevant_terms)} approved terms")
+                for term in rejected_terms:
+                    source_term = term.get("source_term", "")
+                    if source_term and source_term.lower() in source_text_lower:
+                        relevant_rejected.append(term)
+
+                # Re-translate if segment contains approved OR rejected terms
+                if relevant_approved or relevant_rejected:
+                    logger.info(f"Re-translating segment with {len(relevant_approved)} approved terms, {len(relevant_rejected)} rejected terms")
                     updated_text = await self._retranslate_segment(
                         source_text,
-                        relevant_terms,
-                        segment.get("translated_text", "")
+                        relevant_approved,
+                        segment.get("translated_text", ""),
+                        rejected_terms=relevant_rejected
                     )
 
                     updated_segment = segment.copy()
@@ -116,9 +126,10 @@ class ChangeImplementer:
         source_text: str,
         terms: List[Dict[str, Any]],
         original_translation: str = "",
+        rejected_terms: List[Dict[str, Any]] = None,
     ) -> str:
         """
-        Re-translates a segment with approved terminology.
+        Re-translates a segment with approved terminology and avoiding rejected terms.
 
         This is more reliable than trying to replace terms in existing translation,
         because it handles grammatical forms, context, and ensures terminology is used.
@@ -127,12 +138,13 @@ class ChangeImplementer:
             source_text: English source text
             terms: List of approved terms to use
             original_translation: Original Polish translation (for reference)
+            rejected_terms: List of rejected terms to avoid
 
         Returns:
             New Polish translation with approved terminology
         """
         try:
-            # Build terminology table for prompt
+            # Build terminology table for approved terms
             terminology_lines = []
             for term in terms:
                 source_term = term.get("source_term", "")
@@ -140,7 +152,28 @@ class ChangeImplementer:
                 if source_term and target_term:
                     terminology_lines.append(f"- {source_term} → {target_term}")
 
-            terminology_text = "\n".join(terminology_lines)
+            terminology_text = "\n".join(terminology_lines) if terminology_lines else "Brak zatwierdzonych terminów"
+
+            # Build list of rejected terms (to avoid)
+            rejected_lines = []
+            if rejected_terms:
+                for term in rejected_terms:
+                    source_term = term.get("source_term", "")
+                    # Include original proposal that was rejected
+                    original_proposal = term.get("original_proposal", term.get("target_term", ""))
+                    if source_term and original_proposal:
+                        rejected_lines.append(f"- {source_term} → NIE UŻYWAJ: {original_proposal}")
+
+            rejected_text = "\n".join(rejected_lines) if rejected_lines else ""
+
+            # Build the rejected terms section
+            rejected_section = ""
+            if rejected_text:
+                rejected_section = f"""
+
+REJECTED TERMINOLOGY (DO NOT USE - find alternative translations):
+{rejected_text}
+"""
 
             # Prompt for Claude to translate with approved terminology
             prompt = f"""You are a professional legal translator (English to Polish).
@@ -154,13 +187,14 @@ SOURCE TEXT (EN):
 
 APPROVED TERMINOLOGY (MUST USE):
 {terminology_text}
-
+{rejected_section}
 INSTRUCTIONS:
-1. Use the approved Polish terms for the English terms listed above
-2. Apply proper Polish grammar and declension (cases, gender, etc.)
-3. Maintain professional legal language style
-4. Ensure the translation is natural and fluent
-5. The approved terminology MUST be used - do not substitute with synonyms
+1. Use the approved Polish terms for the English terms listed above - these are MANDATORY
+2. For rejected terms: find appropriate alternative translations (do NOT use the rejected translations)
+3. Apply proper Polish grammar and declension (cases, gender, etc.)
+4. Maintain professional legal language style
+5. Ensure the translation is natural and fluent
+6. The approved terminology MUST be used - do not substitute with synonyms
 
 CRITICAL RULES:
 1. Translate ONLY the source text provided above - nothing more, nothing less
