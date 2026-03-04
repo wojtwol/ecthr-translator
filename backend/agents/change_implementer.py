@@ -77,6 +77,31 @@ class ChangeImplementer:
             # Grupuj terminy według kontekstu dla efektywnego przetwarzania
             updated_segments = []
 
+            def term_matches_segment(source_term: str, source_text_lower: str) -> bool:
+                """Check if a term matches the segment text (handles parenthetical variations)."""
+                if not source_term:
+                    return False
+
+                term_lower = source_term.lower()
+
+                # Direct match
+                if term_lower in source_text_lower:
+                    return True
+
+                # Try matching without parenthetical content
+                # e.g., "Chief Justice (Magistrato Dirigente)" -> "Chief Justice"
+                import re
+                term_without_parens = re.sub(r'\s*\([^)]*\)', '', term_lower).strip()
+                if term_without_parens and term_without_parens in source_text_lower:
+                    return True
+
+                # Try matching the main term (before any parenthesis)
+                main_term = term_lower.split('(')[0].strip()
+                if main_term and len(main_term) > 2 and main_term in source_text_lower:
+                    return True
+
+                return False
+
             for segment in segments:
                 # Check if segment contains any approved OR rejected terms
                 source_text = segment.get("source_text", "")
@@ -87,12 +112,12 @@ class ChangeImplementer:
 
                 for term in approved_terms:
                     source_term = term.get("source_term", "")
-                    if source_term and source_term.lower() in source_text_lower:
+                    if term_matches_segment(source_term, source_text_lower):
                         relevant_approved.append(term)
 
                 for term in rejected_terms:
                     source_term = term.get("source_term", "")
-                    if source_term and source_term.lower() in source_text_lower:
+                    if term_matches_segment(source_term, source_text_lower):
                         relevant_rejected.append(term)
 
                 # Re-translate if segment contains approved OR rejected terms
