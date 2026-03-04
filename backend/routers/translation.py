@@ -296,6 +296,15 @@ async def _run_translation(
             # Save translated segments
             logger.info(f"[Job {job_id}] Starting to save {len(result.segments)} segments to database")
             for idx, segment_data in enumerate(result.segments):
+                # Preserve parent_type and other format info in format_metadata
+                format_meta = segment_data.get("formatting", segment_data.get("format", {})).copy() if segment_data.get("formatting") or segment_data.get("format") else {}
+                if segment_data.get("parent_type"):
+                    format_meta["parent_type"] = segment_data.get("parent_type")
+                if segment_data.get("footnote_id"):
+                    format_meta["footnote_id"] = segment_data.get("footnote_id")
+                if segment_data.get("endnote_id"):
+                    format_meta["endnote_id"] = segment_data.get("endnote_id")
+
                 db_segment = models.Segment(
                     id=str(uuid.uuid4()),
                     document_id=document_id,
@@ -303,7 +312,7 @@ async def _run_translation(
                     source_text=segment_data.get("text", ""),
                     target_text=segment_data.get("target_text", ""),
                     section_type=segment_data.get("section_type", "other"),
-                    format_metadata=segment_data.get("formatting", {}),
+                    format_metadata=format_meta,
                     status="translated",
                 )
                 db.add(db_segment)
@@ -422,6 +431,15 @@ async def _run_translation(
 
                     # Save segments from this batch
                     for idx, segment_data in enumerate(batch_segments):
+                        # Preserve parent_type and other format info in format_metadata
+                        format_meta = segment_data.get("formatting", segment_data.get("format", {})).copy() if segment_data.get("formatting") or segment_data.get("format") else {}
+                        if segment_data.get("parent_type"):
+                            format_meta["parent_type"] = segment_data.get("parent_type")
+                        if segment_data.get("footnote_id"):
+                            format_meta["footnote_id"] = segment_data.get("footnote_id")
+                        if segment_data.get("endnote_id"):
+                            format_meta["endnote_id"] = segment_data.get("endnote_id")
+
                         db_segment = models.Segment(
                             id=str(uuid.uuid4()),
                             document_id=document_id,
@@ -429,7 +447,7 @@ async def _run_translation(
                             source_text=segment_data.get("text", ""),
                             target_text=segment_data.get("target_text", ""),
                             section_type=segment_data.get("section_type", "other"),
-                            format_metadata=segment_data.get("formatting", {}),
+                            format_metadata=format_meta,
                             status="translated",
                         )
                         batch_db.add(db_segment)
@@ -565,16 +583,25 @@ async def _run_finalization(job_id: str, document_id: str, db: Session):
             .all()
         )
 
-        segments = [
-            {
+        segments = []
+        for seg in db_segments:
+            format_meta = seg.format_metadata or {}
+            segment_dict = {
                 "text": seg.source_text,
                 "translated_text": seg.target_text,
                 "source_text": seg.source_text,
                 "section_type": seg.section_type,
-                "formatting": seg.format_metadata or {},
+                "formatting": format_meta,
+                "format": format_meta,  # Some code uses "format" key
             }
-            for seg in db_segments
-        ]
+            # Restore parent_type and note IDs from format_metadata
+            if format_meta.get("parent_type"):
+                segment_dict["parent_type"] = format_meta["parent_type"]
+            if format_meta.get("footnote_id"):
+                segment_dict["footnote_id"] = format_meta["footnote_id"]
+            if format_meta.get("endnote_id"):
+                segment_dict["endnote_id"] = format_meta["endnote_id"]
+            segments.append(segment_dict)
 
         # Get document metadata
         metadata = {
