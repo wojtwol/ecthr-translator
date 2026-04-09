@@ -51,7 +51,7 @@ function App() {
   const checkAuthStatus = async () => {
     try {
       // First check if auth is required
-      const statusResponse = await authFetch(`${API_BASE_URL}/api/auth/status`);
+      const statusResponse = await fetch(`${API_BASE_URL}/api/auth/status`);
       const statusData = await statusResponse.json();
 
       if (!statusData.auth_required) {
@@ -73,7 +73,7 @@ function App() {
       }
 
       // Verify token
-      const verifyResponse = await authFetch(`${API_BASE_URL}/api/auth/verify`, {
+      const verifyResponse = await fetch(`${API_BASE_URL}/api/auth/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -101,7 +101,7 @@ function App() {
     const token = localStorage.getItem('auth_token');
     if (token) {
       try {
-        await authFetch(`${API_BASE_URL}/api/auth/logout`, {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
