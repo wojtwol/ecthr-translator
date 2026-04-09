@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 
 const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmentUpdate, onAddTermFromSelection }) => {
   const [editingSegment, setEditingSegment] = useState(null);
@@ -96,8 +97,8 @@ const TranslationPreview = ({ segments, terms, onTermClick, documentId, onSegmen
 
     setSaving(true);
     try {
-      const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/documents/${documentId}/segments/${editingSegment.id}`,
+      const response = await authFetch(
+        `${API_BASE_URL}/documents/${documentId}/segments/${editingSegment.id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

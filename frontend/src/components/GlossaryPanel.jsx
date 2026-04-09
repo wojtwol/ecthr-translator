@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 import ProgressBar from './ProgressBar';
 
 const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger, initialSourceTerm, initialTargetTerm, onTermAdded }) => {
@@ -53,7 +54,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
   const loadSession = async () => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions/active`
+        `${API_BASE_URL}/glossary/${documentId}/sessions/active`
       );
       if (response.ok) {
         const session = await response.json();
@@ -72,7 +73,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
   const saveSession = async () => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions`,
+        `${API_BASE_URL}/glossary/${documentId}/sessions`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -97,7 +98,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
 
     try {
       await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sessions/${sessionId}/complete`,
+        `${API_BASE_URL}/glossary/${documentId}/sessions/${sessionId}/complete`,
         { method: 'POST' }
       );
       setSessionId(null);
@@ -116,7 +117,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}?status=${filter}&page=${currentPage}&per_page=200`,
+        `${API_BASE_URL}/glossary/${documentId}?status=${filter}&page=${currentPage}&per_page=200`,
         { signal: controller.signal }
       );
       clearTimeout(timeoutId);
@@ -173,7 +174,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
     setSaveStatus('saving');
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/project-state`
+        `${API_BASE_URL}/glossary/${documentId}/export/project-state`
       );
 
       if (!response.ok) {
@@ -225,7 +226,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
 
       // Wyślij do backendu
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/restore-terms`,
+        `${API_BASE_URL}/glossary/${documentId}/restore-terms`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -267,7 +268,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
     setAddingTerm(true);
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/terms`,
+        `${API_BASE_URL}/glossary/${documentId}/terms`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -310,7 +311,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
     }
 
     try {
-      await fetch(`https://ecthr-translator.onrender.com/api/glossary/${documentId}/approve-all`, {
+      await authFetch(`${API_BASE_URL}/glossary/${documentId}/approve-all`, {
         method: 'POST',
       });
       fetchTerms();
@@ -329,7 +330,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${term.id}`,
+        `${API_BASE_URL}/glossary/${documentId}/${term.id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

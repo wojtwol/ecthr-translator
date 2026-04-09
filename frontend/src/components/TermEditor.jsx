@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 
 const TermEditor = ({ term, documentId, onClose, onSave, translationStatus, onApplyToTranslation }) => {
   const [editedTerm, setEditedTerm] = useState('');
@@ -21,7 +22,7 @@ const TermEditor = ({ term, documentId, onClose, onSave, translationStatus, onAp
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${term.id}`,
+        `${API_BASE_URL}/glossary/${documentId}/${term.id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

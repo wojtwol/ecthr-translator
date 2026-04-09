@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 
 const SourcesReport = ({ documentId }) => {
   const [report, setReport] = useState(null);
@@ -24,7 +25,7 @@ const SourcesReport = ({ documentId }) => {
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/sources-report`,
+        `${API_BASE_URL}/glossary/${documentId}/sources-report`,
         { signal: controller.signal }
       );
 

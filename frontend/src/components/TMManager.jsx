@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 
 const TMManager = () => {
   const [memories, setMemories] = useState([]);
@@ -11,7 +12,7 @@ const TMManager = () => {
   const fetchMemories = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://ecthr-translator.onrender.com/api/tm/list');
+      const response = await authFetch(`${API_BASE_URL}/tm/list');
 
       if (!response.ok) {
         throw new Error('Failed to fetch translation memories');
@@ -52,7 +53,7 @@ const TMManager = () => {
       formData.append('priority', '4'); // Default priority
       formData.append('enabled', 'true');
 
-      const response = await fetch('https://ecthr-translator.onrender.com/api/tm/upload', {
+      const response = await authFetch(`${API_BASE_URL}/tm/upload', {
         method: 'POST',
         body: formData,
       });
@@ -81,7 +82,7 @@ const TMManager = () => {
     try {
       const endpoint = currentEnabled ? 'disable' : 'enable';
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/tm/${tmName}/${endpoint}`,
+        `${API_BASE_URL}/tm/${tmName}/${endpoint}`,
         { method: 'POST' }
       );
 
@@ -100,7 +101,7 @@ const TMManager = () => {
   const handlePriorityChange = async (tmName, newPriority) => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/tm/${tmName}`,
+        `${API_BASE_URL}/tm/${tmName}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -123,7 +124,7 @@ const TMManager = () => {
   const handleDownload = async (tmName) => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/tm/${tmName}/download`
+        `${API_BASE_URL}/tm/${tmName}/download`
       );
 
       if (!response.ok) {
@@ -152,7 +153,7 @@ const TMManager = () => {
 
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/tm/${tmName}?delete_file=false`,
+        `${API_BASE_URL}/tm/${tmName}?delete_file=false`,
         { method: 'DELETE' }
       );
 

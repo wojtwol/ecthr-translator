@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     # API Keys
     anthropic_api_key: str
 
+    # Authentication
+    app_password: str = ""  # If empty, no authentication required
+    auth_token_secret: str = "ecthr-translator-secret-key-change-me"
+    auth_token_expire_hours: int = 24
+
     # Paths
     tm_path: Path = Path("/tmp/data/tm")
     upload_path: Path = Path("/tmp/data/uploads")

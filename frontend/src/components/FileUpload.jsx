@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { API_BASE_URL, authFetch } from '../config';
 
 const FileUpload = ({ onUploadSuccess }) => {
   const [uploading, setUploading] = useState(false);
@@ -28,7 +29,7 @@ const FileUpload = ({ onUploadSuccess }) => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('https://ecthr-translator.onrender.com/api/documents/upload', {
+      const response = await authFetch(`${API_BASE_URL}/documents/upload`, {
         method: 'POST',
         body: formData,
       });

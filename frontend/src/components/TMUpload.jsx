@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL, authFetch } from '../config';
 
 const TMUpload = () => {
   const [uploading, setUploading] = useState(false);
@@ -24,7 +25,7 @@ const TMUpload = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('https://ecthr-translator.onrender.com/api/tm/upload', {
+      const response = await authFetch(`${API_BASE_URL}/tm/upload', {
         method: 'POST',
         body: formData,
       });

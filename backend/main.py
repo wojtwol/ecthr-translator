@@ -1,13 +1,14 @@
 """ECTHR Translator FastAPI Application."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pathlib import Path
 import logging
 
 from config import settings
-from routers import documents, translation, glossary, websocket, tm_management, tm
+from routers import documents, translation, glossary, websocket, tm_management, tm, auth
+from routers.auth import require_auth
 from db.database import init_db
 
 # Configure logging
@@ -39,12 +40,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(documents.router, prefix="/api")
-app.include_router(translation.router, prefix="/api")
-app.include_router(glossary.router, prefix="/api")
-app.include_router(tm_management.router, prefix="/api")
-app.include_router(tm.router, prefix="/api")
+# Include auth router (no auth required for auth endpoints)
+app.include_router(auth.router, prefix="/api")
+
+# Include protected routers (require authentication)
+app.include_router(documents.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(translation.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(glossary.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(tm_management.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(tm.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(websocket.router)
 
 

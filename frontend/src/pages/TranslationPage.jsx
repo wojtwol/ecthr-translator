@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, authFetch, getAuthHeaders } from '../config';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../hooks/useTranslation';
 import GlossaryPanel from '../components/GlossaryPanel';
@@ -95,7 +96,7 @@ const TranslationPage = () => {
   const fetchDocumentStats = async () => {
     try {
       setLoadingStats(true);
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/documents/${documentId}/analyze`);
+      const response = await authFetch(`${API_BASE_URL}/documents/${documentId}/analyze`);
       if (response.ok) {
         const stats = await response.json();
         setDocumentStats(stats);
@@ -146,17 +147,47 @@ const TranslationPage = () => {
     }
   };
 
-  const handleDownload = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/documents/${documentId}/download`;
+  const handleDownload = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/documents/${documentId}/download`);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = document?.filename?.replace('.docx', '_translated.docx') || 'translated.docx';
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Nie udało się pobrać dokumentu');
+    }
   };
 
-  const handleExportTM = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/tm/export/${documentId}`;
+  const handleExportTM = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/tm/export/${documentId}`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `tm_export_${documentId}.tmx`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('TM export failed:', err);
+      alert('Nie udało się wyeksportować pamięci tłumaczeniowej');
+    }
   };
 
   const handleUpdateTM = async () => {
     try {
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/tm/update-from-project/${documentId}`, {
+      const response = await authFetch(`${API_BASE_URL}/tm/update-from-project/${documentId}`, {
         method: 'POST',
       });
 
@@ -172,12 +203,42 @@ const TranslationPage = () => {
     }
   };
 
-  const handleExportGlossaryAll = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/all/xlsx`;
+  const handleExportGlossaryAll = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/glossary/${documentId}/export/all/xlsx`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `glossary_all_${documentId}.xlsx`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('Glossary export failed:', err);
+      alert('Nie udało się wyeksportować glosariusza');
+    }
   };
 
-  const handleExportGlossaryApproved = () => {
-    window.location.href = `https://ecthr-translator.onrender.com/api/glossary/${documentId}/export/approved/xlsx`;
+  const handleExportGlossaryApproved = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/glossary/${documentId}/export/approved/xlsx`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `glossary_approved_${documentId}.xlsx`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('Glossary export failed:', err);
+      alert('Nie udało się wyeksportować glosariusza');
+    }
   };
 
   if (loading) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE_URL, authFetch, getAuthHeaders } from '../config';
 
 /**
  * Custom hook for managing translation state and WebSocket connection
@@ -22,7 +23,7 @@ export const useTranslation = (documentId) => {
   // Fetch document details
   const fetchDocument = useCallback(async () => {
     try {
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/documents/${documentId}`);
+      const response = await authFetch(`${API_BASE_URL}/documents/${documentId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch document');
       }
@@ -37,7 +38,7 @@ export const useTranslation = (documentId) => {
   // Fetch translation segments
   const fetchSegments = useCallback(async () => {
     try {
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/documents/${documentId}/segments`);
+      const response = await authFetch(`${API_BASE_URL}/documents/${documentId}/segments`);
       if (!response.ok) {
         throw new Error('Failed to fetch segments');
       }
@@ -59,7 +60,7 @@ export const useTranslation = (documentId) => {
   // Fetch glossary terms
   const fetchTerms = useCallback(async () => {
     try {
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/glossary/${documentId}`);
+      const response = await authFetch(`${API_BASE_URL}/glossary/${documentId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch terms');
       }
@@ -79,7 +80,7 @@ export const useTranslation = (documentId) => {
       setExtractionComplete(false); // Reset extraction flag
       setBatchInfo({ current: 0, total: 0 }); // Reset batch info
 
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/translation/${documentId}/start`, {
+      const response = await authFetch(`${API_BASE_URL}/translation/${documentId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ export const useTranslation = (documentId) => {
         message: 'Rozpoczęto generowanie finalnego tłumaczenia z zatwierdzoną terminologią...',
       });
 
-      const response = await fetch(`https://ecthr-translator.onrender.com/api/translation/${documentId}/finalize`, {
+      const response = await authFetch(`${API_BASE_URL}/translation/${documentId}/finalize`, {
         method: 'POST',
       });
 
@@ -143,7 +144,7 @@ export const useTranslation = (documentId) => {
   const updateTerm = useCallback(async (termId, update) => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${termId}`,
+        `${API_BASE_URL}/glossary/${documentId}/${termId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -176,7 +177,7 @@ export const useTranslation = (documentId) => {
   const applyTermToTranslation = useCallback(async (termId) => {
     try {
       const response = await fetch(
-        `https://ecthr-translator.onrender.com/api/glossary/${documentId}/${termId}/apply-to-translation`,
+        `${API_BASE_URL}/glossary/${documentId}/${termId}/apply-to-translation`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
