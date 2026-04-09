@@ -25,7 +25,7 @@ const TMUpload = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await authFetch(`${API_BASE_URL}/tm/upload', {
+      const response = await authFetch(`${API_BASE_URL}/tm/upload`, {
         method: 'POST',
         body: formData,
       });

@@ -12,7 +12,7 @@ const TMManager = () => {
   const fetchMemories = async () => {
     try {
       setLoading(true);
-      const response = await authFetch(`${API_BASE_URL}/tm/list');
+      const response = await authFetch(`${API_BASE_URL}/tm/list`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch translation memories');
@@ -53,7 +53,7 @@ const TMManager = () => {
       formData.append('priority', '4'); // Default priority
       formData.append('enabled', 'true');
 
-      const response = await authFetch(`${API_BASE_URL}/tm/upload', {
+      const response = await authFetch(`${API_BASE_URL}/tm/upload`, {
         method: 'POST',
         body: formData,
       });
