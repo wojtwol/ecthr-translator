@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tmx SYSTEM "tmx14.dtd">
+<tmx version="1.4">
+  <header
+    creationtool="ECTHR-Translator"
+    creationtoolversion="1.0"
+    segtype="sentence"
+    o-tmf="PlainText"
+    adminlang="en-US"
+    srclang="en-US"
+    datatype="PlainText"
+  />
+  <body>
+    <!-- Polish District Courts -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>district court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>sąd rejonowy</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <!-- Polish Regional Courts -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>regional court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>sąd okręgowy</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <!-- Polish Courts of Appeal -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>court of appeal</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>sąd apelacyjny</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <!-- Capitalized variants -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>District Court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Rejonowy</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Regional Court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Okręgowy</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Court of Appeal</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Apelacyjny</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court system</prop>
+    </tu>
+
+    <!-- Common variants with locations -->
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Warsaw District Court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Rejonowy w Warszawie</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court with location</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Warsaw Regional Court</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Okręgowy w Warszawie</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court with location</prop>
+    </tu>
+
+    <tu>
+      <tuv xml:lang="en-US">
+        <seg>Warsaw Court of Appeal</seg>
+      </tuv>
+      <tuv xml:lang="pl-PL">
+        <seg>Sąd Apelacyjny w Warszawie</seg>
+      </tuv>
+      <prop type="x-category">court_name</prop>
+      <prop type="x-context">Polish court with location</prop>
+    </tu>
+  </body>
+</tmx>

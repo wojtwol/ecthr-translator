@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: ecthr-translator-backend
+    env: python
+    region: frankfurt
+    plan: free
+    branch: claude/fix-translation-download-OMtCe
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TM_PATH
+        value: /tmp/data/tm
+      - key: UPLOAD_PATH
+        value: /tmp/data/uploads
+      - key: OUTPUT_PATH
+        value: /tmp/data/outputs
+      - key: DATABASE_URL
+        value: sqlite:////tmp/data/ecthr.db
+      - key: BACKEND_HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: INFO
