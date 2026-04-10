@@ -205,7 +205,11 @@ export const useTranslation = (documentId) => {
     if (!documentId) return;
 
     const connectWebSocket = () => {
-      const ws = new WebSocket(`wss://ecthr-translator.onrender.com/ws/${documentId}`);
+      const authToken = localStorage.getItem('auth_token');
+      const wsUrl = authToken
+        ? `wss://ecthr-translator.onrender.com/ws/${documentId}?token=${encodeURIComponent(authToken)}`
+        : `wss://ecthr-translator.onrender.com/ws/${documentId}`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {

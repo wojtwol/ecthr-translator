@@ -1,10 +1,12 @@
 """WebSocket endpoints for real-time updates."""
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Dict, Set
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from typing import Dict, Set, Optional
 import json
 import asyncio
 import logging
+
+from routers.auth import is_auth_enabled, verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +123,15 @@ manager = ConnectionManager()
 
 
 @router.websocket("/ws/{document_id}")
-async def websocket_endpoint(websocket: WebSocket, document_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    document_id: str,
+    token: Optional[str] = Query(None),
+):
     """
     WebSocket endpoint for real-time updates.
+
+    Requires ?token=<auth_token> query parameter when auth is enabled.
 
     Client will receive JSON messages with types:
     - progress: { type, stage, progress, message }
@@ -131,6 +139,12 @@ async def websocket_endpoint(websocket: WebSocket, document_id: str):
     - translation_complete: { type, translation_id }
     - error: { type, error }
     """
+    # Verify authentication before accepting the connection
+    if is_auth_enabled():
+        if not token or not verify_token(token):
+            await websocket.close(code=4001, reason="Authentication required")
+            return
+
     await manager.connect(websocket, document_id)
 
     # Server-side keepalive task

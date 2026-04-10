@@ -3,6 +3,8 @@
 import logging
 import hashlib
 import secrets
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -19,6 +21,31 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 active_tokens: dict[str, datetime] = {}
 
 security = HTTPBearer(auto_error=False)
+
+# --- Rate limiting ---
+# Track failed login attempts per IP: ip -> list of timestamps
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_MAX_LOGIN_ATTEMPTS = 5  # max attempts per window
+_LOGIN_WINDOW_SECONDS = 300  # 5-minute window
+
+
+def _check_login_rate_limit(ip: str) -> None:
+    """Raise 429 if too many failed login attempts from this IP."""
+    now = time.time()
+    # Prune old attempts outside the window
+    _login_attempts[ip] = [
+        t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW_SECONDS
+    ]
+    if len(_login_attempts[ip]) >= _MAX_LOGIN_ATTEMPTS:
+        logger.warning(f"Rate limit exceeded for IP {ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+        )
+
+
+def _record_failed_attempt(ip: str) -> None:
+    _login_attempts[ip].append(time.time())
 
 
 class LoginRequest(BaseModel):
@@ -96,7 +123,7 @@ async def require_auth(
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, req: Request):
     """
     Login with password.
 
@@ -110,9 +137,13 @@ async def login(request: LoginRequest):
             message="Authentication not required"
         )
 
-    # Verify password
-    if request.password != settings.app_password:
-        logger.warning("Failed login attempt")
+    client_ip = req.client.host if req.client else "unknown"
+    _check_login_rate_limit(client_ip)
+
+    # Verify password using constant-time comparison
+    if not secrets.compare_digest(request.password, settings.app_password):
+        _record_failed_attempt(client_ip)
+        logger.warning(f"Failed login attempt from {client_ip}")
         raise HTTPException(
             status_code=401,
             detail="Invalid password"
@@ -150,7 +181,6 @@ async def auth_status():
     """Check if authentication is required."""
     return {
         "auth_required": is_auth_enabled(),
-        "active_sessions": len(active_tokens) if is_auth_enabled() else 0
     }
 
 

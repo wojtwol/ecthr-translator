@@ -1,5 +1,6 @@
 """ECTHR Translator FastAPI Application."""
 
+import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -18,26 +19,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Disable API docs in production
+_is_production = os.environ.get("RENDER", "") or os.environ.get("RAILWAY_ENVIRONMENT", "")
+_docs_url = None if _is_production else "/docs"
+_redoc_url = None if _is_production else "/redoc"
+
 # Create FastAPI app
 app = FastAPI(
     title="ECTHR Translator API",
     description="Translation system for European Court of Human Rights judgments",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
 )
 
-# Configure CORS - Allow all Vercel deployments
+# Configure CORS - only allow our specific frontend domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://ecthr-translator.vercel.app",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include auth router (no auth required for auth endpoints)
@@ -58,7 +64,6 @@ async def startup_event():
     logger.info("Starting ECTHR Translator API")
 
     # Ensure data directories exist (critical for Render /tmp storage)
-    import os
     import shutil
     from pathlib import Path
 
@@ -109,27 +114,16 @@ async def root():
     return {
         "message": "ECTHR Translator API",
         "version": "1.0.0",
-        "docs": "/docs",
     }
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "services": {
-            "hudoc": settings.hudoc_enabled,
-            "curia": settings.curia_enabled,
-            "iate": not settings.iate_use_mock,
-        },
-        "features": {
-            "case_law_research": settings.hudoc_enabled or settings.curia_enabled or not settings.iate_use_mock,
-        },
-    }
+    return {"status": "healthy"}
 
 
-@app.get("/docs/project-description")
+@app.get("/docs/project-description", dependencies=[Depends(require_auth)])
 async def download_project_description():
     """Download project description document."""
     docs_path = Path(__file__).parent.parent / "data" / "docs" / "PROJECT_DESCRIPTION.docx"
