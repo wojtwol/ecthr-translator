@@ -21,7 +21,7 @@ const TermEditor = ({ term, documentId, onClose, onSave, translationStatus, onAp
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/${term.id}`,
         {
           method: 'PUT',

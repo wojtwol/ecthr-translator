@@ -81,7 +81,7 @@ const TMManager = () => {
   const handleToggleEnabled = async (tmName, currentEnabled) => {
     try {
       const endpoint = currentEnabled ? 'disable' : 'enable';
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/tm/${tmName}/${endpoint}`,
         { method: 'POST' }
       );
@@ -100,7 +100,7 @@ const TMManager = () => {
   // Update priority
   const handlePriorityChange = async (tmName, newPriority) => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/tm/${tmName}`,
         {
           method: 'PUT',
@@ -123,7 +123,7 @@ const TMManager = () => {
   // Download TM
   const handleDownload = async (tmName) => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/tm/${tmName}/download`
       );
 
@@ -152,7 +152,7 @@ const TMManager = () => {
     }
 
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/tm/${tmName}?delete_file=false`,
         { method: 'DELETE' }
       );

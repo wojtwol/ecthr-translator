@@ -143,7 +143,7 @@ export const useTranslation = (documentId) => {
   // Update a term
   const updateTerm = useCallback(async (termId, update) => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/${termId}`,
         {
           method: 'PUT',
@@ -176,7 +176,7 @@ export const useTranslation = (documentId) => {
   // Apply term changes to translation segments
   const applyTermToTranslation = useCallback(async (termId) => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/${termId}/apply-to-translation`,
         {
           method: 'POST',

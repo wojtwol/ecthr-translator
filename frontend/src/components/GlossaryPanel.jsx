@@ -53,7 +53,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
 
   const loadSession = async () => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/sessions/active`
       );
       if (response.ok) {
@@ -72,7 +72,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
 
   const saveSession = async () => {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/sessions`,
         {
           method: 'POST',
@@ -97,7 +97,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
     if (!confirm('Czy zakończyć tę sesję pracy nad glosariuszem?')) return;
 
     try {
-      await fetch(
+      await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/sessions/${sessionId}/complete`,
         { method: 'POST' }
       );
@@ -116,7 +116,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
       // Increased timeout to 120s for Render Free tier cold start (can take 50-60s)
       const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}?status=${filter}&page=${currentPage}&per_page=200`,
         { signal: controller.signal }
       );
@@ -173,7 +173,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
   const handleDownloadProject = async () => {
     setSaveStatus('saving');
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/export/project-state`
       );
 
@@ -225,7 +225,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
       }
 
       // Wyślij do backendu
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/restore-terms`,
         {
           method: 'PUT',
@@ -267,7 +267,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
 
     setAddingTerm(true);
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/terms`,
         {
           method: 'POST',
@@ -329,7 +329,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/${term.id}`,
         {
           method: 'PUT',

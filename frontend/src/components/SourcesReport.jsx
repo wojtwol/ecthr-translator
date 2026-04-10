@@ -24,7 +24,7 @@ const SourcesReport = ({ documentId }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
-      const response = await fetch(
+      const response = await authFetch(
         `${API_BASE_URL}/glossary/${documentId}/sources-report`,
         { signal: controller.signal }
       );
