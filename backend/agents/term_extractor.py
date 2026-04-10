@@ -271,8 +271,18 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            # Parsuj odpowiedź JSON
-            result = json.loads(response.content[0].text)
+            # Parsuj odpowiedź JSON (obsługa markdown code blocks)
+            raw_text = response.content[0].text.strip()
+            # Strip markdown code fences if present
+            if raw_text.startswith("```"):
+                # Remove opening fence (```json or ```)
+                first_newline = raw_text.index("\n")
+                raw_text = raw_text[first_newline + 1:]
+                # Remove closing fence
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3].strip()
+
+            result = json.loads(raw_text)
             terms = result.get("terms", [])
 
             # Waliduj i normalizuj terminy
