@@ -222,6 +222,9 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
 
         logger.info(f"Extracted {len(all_terms)} unique terms from {len(segments)} segments")
 
+        # Filter by frequency: keep only terms appearing 3+ times in the document
+        all_terms = self._filter_by_frequency(all_terms, segments, min_occurrences=3)
+
         # Wzbogać terminy o wyniki z baz orzeczeń (HUDOC, CURIA, IATE)
         if self.enable_case_law_research and all_terms:
             try:
@@ -308,6 +311,57 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                 lines.append(f"- {source} → {target}")
 
         return "\n".join(lines)
+
+    def _filter_by_frequency(
+        self,
+        terms: List[Dict[str, Any]],
+        segments: List[Dict[str, Any]],
+        min_occurrences: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter out terms that appear fewer than min_occurrences times in the document.
+
+        Terms of type convention, latin, court_name, institution are exempt.
+        """
+        if not terms:
+            return terms
+
+        # Build full document text (lowercase) from all segments
+        full_text = " ".join(
+            seg.get("text", "") for seg in segments
+        ).lower()
+
+        exempt_types = {"convention", "latin", "court_name", "institution"}
+        filtered = []
+        removed_count = 0
+
+        for term in terms:
+            term_type = term.get("term_type", "other")
+            if term_type in exempt_types:
+                filtered.append(term)
+                continue
+
+            source = term.get("source_term", "").lower()
+            if not source:
+                continue
+
+            count = full_text.count(source)
+            if count >= min_occurrences:
+                filtered.append(term)
+            else:
+                removed_count += 1
+                logger.debug(
+                    f"Filtered out term '{term.get('source_term')}' "
+                    f"(occurrences: {count}, min: {min_occurrences})"
+                )
+
+        if removed_count:
+            logger.info(
+                f"Frequency filter: kept {len(filtered)}/{len(terms)} terms "
+                f"(removed {removed_count} with <{min_occurrences} occurrences)"
+            )
+
+        return filtered
 
     def _validate_term(self, term: Dict[str, Any]) -> bool:
         """
