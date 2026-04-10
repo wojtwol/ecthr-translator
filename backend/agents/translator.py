@@ -492,7 +492,7 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
 
         try:
             response = self.client.messages.create(
-                model="claude-sonnet-4-6-20250514",
+                model="claude-sonnet-4-6",
                 max_tokens=2000,
                 temperature=0.3,  # Niska temperatura dla konsystencji
                 messages=[{"role": "user", "content": prompt}],
