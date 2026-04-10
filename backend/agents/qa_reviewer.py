@@ -62,7 +62,7 @@ class QAReviewer:
             api_key: Klucz API Anthropic (opcjonalny, domyślnie z settings)
         """
         self.client = Anthropic(api_key=api_key or settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-5-20250929"
+        self.model = "claude-sonnet-4-6-20250514"
         self.review_count = 0
         logger.info("QA Reviewer initialized")
 
