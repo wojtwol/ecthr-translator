@@ -283,6 +283,15 @@ const TMManager = () => {
                       P{tm.priority}: {getPriorityLabel(tm.priority)}
                     </span>
                     <span
+                      className={`px-2 py-1 text-xs font-semibold rounded border ${
+                        tm.file_type === 'tbx'
+                          ? 'bg-green-100 text-green-800 border-green-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-300'
+                      }`}
+                    >
+                      {tm.file_type === 'tbx' ? 'Glosariusz' : 'Pamięć TM'}
+                    </span>
+                    <span
                       className={`px-2 py-1 text-xs font-semibold rounded ${
                         tm.enabled
                           ? 'bg-green-100 text-green-800'

@@ -109,37 +109,37 @@ class CaseLawResearcher:
             all_translation_options = []  # Lista wszystkich opcji tłumaczeń
             all_references = []  # Lista wszystkich referencji do case law
 
-            # STEP 1: Check Translation Memory
+            # STEP 1: Check Glossary (TBX files) via find_glossary_exact
             if ws_manager and document_id:
                 await ws_manager.broadcast_progress(
                     document_id, "searching_tm", current_progress,
-                    f"   💾 Sprawdzam pamięć tłumaczeniową dla '{source_term}'..."
+                    f"   💾 Sprawdzam glosariusz dla '{source_term}'..."
                 )
 
-            # Try exact match first
-            tm_entry = self.tm_manager.find_exact(source_term)
+            # Try glossary exact match (TBX files only)
+            tm_entry = self.tm_manager.find_glossary_exact(source_term) if hasattr(self.tm_manager, 'find_glossary_exact') else self.tm_manager.find_exact(source_term)
             tm_translated = None
             tm_match_type = "tm_exact"
 
-            # If no exact match, try prefix matching (e.g., "Article 44 § 2" matches "Article" → "art.")
+            # If no exact match, try prefix matching (e.g., "Article 44 § 2" matches "Article" -> "art.")
             if not tm_entry:
                 prefix_result = self.tm_manager.find_prefix(source_term)
                 if prefix_result:
                     tm_entry, tm_translated = prefix_result
                     tm_match_type = "tm_prefix"
-                    logger.info(f"Found prefix TM match for '{source_term}': '{tm_entry.source}' → '{tm_translated}'")
+                    logger.info(f"Found prefix TM match for '{source_term}': '{tm_entry.source}' -> '{tm_translated}'")
             else:
                 tm_translated = tm_entry.target
 
             if tm_entry:
-                logger.info(f"Found TM match for '{source_term}': {tm_translated} - STOPPING search")
+                logger.info(f"Found glossary match for '{source_term}': {tm_translated} - continuing to databases")
                 if ws_manager and document_id:
                     await ws_manager.broadcast_progress(
                         document_id, "tm_found", current_progress,
-                        f"   ✓ TM: znaleziono zatwierdzone tłumaczenie! (pomijam bazy danych)"
+                        f"   ✓ Glosariusz: znaleziono tłumaczenie, przeszukuję też bazy danych..."
                     )
 
-                # Dodaj opcję TM do listy
+                # Dodaj opcję z glosariusza do listy (ale NIE przerywaj - kontynuuj do HUDOC/CURIA/IATE)
                 all_translation_options.append({
                     "source_type": tm_match_type,
                     "term_pl": tm_translated,
@@ -147,7 +147,7 @@ class CaseLawResearcher:
                     "metadata": tm_entry.metadata,
                 })
 
-                # Dodaj referencję TM
+                # Dodaj referencję z glosariusza
                 all_references.append({
                     "source": tm_match_type,
                     "term_en": source_term,
@@ -157,29 +157,13 @@ class CaseLawResearcher:
                     "metadata": tm_entry.metadata,
                 })
 
-                # TM znaleziono - dodaj AI proposal i KONIEC (nie szukaj w bazach danych)
-                if original_term.get("proposed_translation"):
-                    all_translation_options.append({
-                        "source_type": "proposed",
-                        "term_pl": original_term.get("proposed_translation"),
-                        "confidence": original_term.get("confidence", 0.6),
-                        "term_type": original_term.get("term_type", "other"),
-                    })
-
-                # Zwróć wzbogacony termin z TM + AI
-                enriched["translation_options"] = all_translation_options
-                enriched["case_law_references"] = all_references
-                enriched["reference_count"] = len(all_references)
-                enriched["options_count"] = len(all_translation_options)
-                logger.info(f"TM match found - skipping database search for '{source_term}'")
-                return enriched
-
-            # TM nie znalazło - przeszukaj bazy danych SEKWENCYJNIE
-            if ws_manager and document_id:
-                await ws_manager.broadcast_progress(
-                    document_id, "tm_not_found", current_progress,
-                    f"   ⊘ TM: brak w pamięci, przeszukuję bazy danych..."
-                )
+            if not tm_entry:
+                # Glosariusz nie znalazł - przeszukaj bazy danych SEKWENCYJNIE
+                if ws_manager and document_id:
+                    await ws_manager.broadcast_progress(
+                        document_id, "tm_not_found", current_progress,
+                        f"   ⊘ Glosariusz: brak wpisu, przeszukuję bazy danych..."
+                    )
 
             # STEP 2: Search HUDOC first
             if ws_manager and document_id:

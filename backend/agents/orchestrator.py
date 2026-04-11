@@ -260,18 +260,12 @@ class Orchestrator:
             # Lazy load TM before using it
             self._ensure_tm_loaded()
 
-            # Przygotuj znane terminy z TM
-            known_terms = []
-            for segment in parsed_segments:
-                tm_match = self.tm_manager.find_exact(segment.get("text", ""))
-                if tm_match:
-                    known_terms.append(
-                        {"source": tm_match.source, "target": tm_match.target}
-                    )
+            # Przygotuj znane terminy z glosariuszy (TBX)
+            known_terms = self.tm_manager.get_glossary_entries(limit=200)
 
-            # Przygotuj terminologię bazową z TM
+            # Przygotuj terminologię bazową z glosariuszy
             base_terminology = {}
-            for term in known_terms[:50]:
+            for term in known_terms:
                 base_terminology[term["source"]] = term["target"]
 
             # Przetwarzaj segmenty w batchach
@@ -300,13 +294,13 @@ class Orchestrator:
                 # Faza 3: Ekstrakcja terminów dla tego batcha
                 batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress, all_segments=parsed_segments)
 
-                # Override AI proposals with glossary translations (priority-based)
+                # Override AI proposals with glossary translations (priority-based, TBX only)
                 for term in batch_terms:
                     source = term.get("source_term", "")
                     if not source:
                         continue
-                    # Check exact match in TM (respects priority order)
-                    tm_match = self.tm_manager.find_exact(source)
+                    # Check exact match in glossaries (TBX files, respects priority order)
+                    tm_match = self.tm_manager.find_glossary_exact(source)
                     if tm_match:
                         term["proposed_translation"] = tm_match.target
                         term["source_type"] = "tm_exact"

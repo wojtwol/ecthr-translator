@@ -33,6 +33,7 @@ class TranslationMemory:
     priority: int  # 1-5, gdzie 1 = najwyższy priorytet
     enabled: bool = True
     entries: List[TMEntry] = None
+    file_type: str = "tmx"  # "tmx" for translation memory, "tbx" for glossary
 
     def __post_init__(self):
         if self.entries is None:
@@ -63,7 +64,8 @@ class MultiTMManager:
         file_path: str,
         priority: int = 5,
         enabled: bool = True,
-        auto_load: bool = True
+        auto_load: bool = True,
+        file_type: str = "tmx"
     ) -> bool:
         """
         Dodaje nową pamięć tłumaczeniową.
@@ -92,7 +94,8 @@ class MultiTMManager:
             file_path=file_path,
             priority=priority,
             enabled=enabled,
-            entries=[]
+            entries=[],
+            file_type=file_type
         )
 
         # Load entries if requested
@@ -167,6 +170,7 @@ class MultiTMManager:
     def find_exact(self, source_text: str) -> Optional[TMEntry]:
         """
         Szuka dokładnego dopasowania w TM (w kolejności priorytetów).
+        Searches ONLY in TMX files (translation memories), not glossaries.
 
         Args:
             source_text: Tekst źródłowy
@@ -176,14 +180,43 @@ class MultiTMManager:
         """
         source_normalized = source_text.strip().lower()
 
-        # Search in priority order
+        # Search in priority order - only TMX files
         for tm in self.get_enabled_tms_by_priority():
+            if tm.file_type != "tmx":
+                continue
             for entry in tm.entries:
                 if entry.source.strip().lower() == source_normalized:
                     logger.debug(f"Exact match found in TM '{tm.name}' (priority {tm.priority}): {entry}")
                     return entry
 
         return None
+
+    def find_glossary_exact(self, source_term: str) -> Optional[TMEntry]:
+        """Search ONLY in glossaries (TBX files) for exact term match, in priority order."""
+        source_normalized = source_term.strip().lower()
+        for tm in self.get_enabled_tms_by_priority():
+            if tm.file_type != "tbx":
+                continue
+            for entry in tm.entries:
+                if entry.source.strip().lower() == source_normalized:
+                    return entry
+        return None
+
+    def get_glossary_entries(self, limit: int = 200) -> List[Dict[str, str]]:
+        """Get all entries from enabled glossaries (TBX), sorted by priority."""
+        entries = []
+        seen = set()
+        for tm in self.get_enabled_tms_by_priority():
+            if tm.file_type != "tbx":
+                continue
+            for entry in tm.entries:
+                key = entry.source.strip().lower()
+                if key not in seen:
+                    seen.add(key)
+                    entries.append({"source": entry.source, "target": entry.target})
+                    if len(entries) >= limit:
+                        return entries
+        return entries
 
     def find_prefix(self, source_text: str) -> Optional[Tuple[TMEntry, str]]:
         """
@@ -197,8 +230,10 @@ class MultiTMManager:
         """
         source_normalized = source_text.strip().lower()
 
-        # Search in priority order
+        # Search in priority order - only TMX files
         for tm in self.get_enabled_tms_by_priority():
+            if tm.file_type != "tmx":
+                continue
             # Sort entries by length (longest first) for best match
             sorted_entries = sorted(tm.entries, key=lambda e: len(e.source), reverse=True)
 
@@ -240,8 +275,10 @@ class MultiTMManager:
         threshold = threshold or settings.tm_fuzzy_threshold
         matches = []
 
-        # Search across all enabled TMs
+        # Search across all enabled TMX files (not glossaries)
         for tm in self.get_enabled_tms_by_priority():
+            if tm.file_type != "tmx":
+                continue
             for entry in tm.entries:
                 similarity = fuzz.ratio(source_text.lower(), entry.source.lower()) / 100.0
 
@@ -342,13 +379,17 @@ class MultiTMManager:
             else:
                 priority = 4  # General terminology
 
+            # Determine file_type based on extension
+            file_type = "tbx" if file_path.suffix.lower() == ".tbx" else "tmx"
+
             # Add TM
             success = self.add_tm(
                 name=file_path.stem,
                 file_path=str(file_path),
                 priority=priority,
                 enabled=True,
-                auto_load=True
+                auto_load=True,
+                file_type=file_type
             )
 
             if success:
@@ -677,6 +718,7 @@ class MultiTMManager:
                     "enabled": tm.enabled,
                     "entries": len(tm.entries),
                     "file_path": tm.file_path,
+                    "file_type": tm.file_type,
                 }
                 for tm in sorted(self.memories.values(), key=lambda t: t.priority)
             ]

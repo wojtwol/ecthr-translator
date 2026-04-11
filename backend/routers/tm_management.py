@@ -35,6 +35,7 @@ class TMInfo(BaseModel):
     enabled: bool
     entries_count: int
     file_path: str
+    file_type: str = "tmx"
 
 
 class TMCreateRequest(BaseModel):
@@ -66,7 +67,8 @@ async def list_translation_memories(tm_manager: MultiTMManager = Depends(get_tm_
             priority=tm_info["priority"],
             enabled=tm_info["enabled"],
             entries_count=tm_info["entries"],
-            file_path=tm_info["file_path"]
+            file_path=tm_info["file_path"],
+            file_type=tm_info.get("file_type", "tmx")
         )
         for tm_info in stats["memories"]
     ]
@@ -151,13 +153,17 @@ async def upload_tm_file(
         logger.error(f"Error saving file: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
+    # Determine file type from extension
+    file_type = "tbx" if original_ext.lower() == ".tbx" else "tmx"
+
     # Add to TM Manager
     success = tm_manager.add_tm(
         name=tm_name,
         file_path=str(file_path),
         priority=priority,
         enabled=enabled,
-        auto_load=True
+        auto_load=True,
+        file_type=file_type
     )
 
     if not success:
@@ -173,6 +179,7 @@ async def upload_tm_file(
         "enabled": tm.enabled,
         "entries_count": len(tm.entries),
         "file_path": tm.file_path,
+        "file_type": file_type,
         "file_size_mb": round(file_size / (1024 * 1024), 2),
         "message": f"Successfully uploaded TM with {len(tm.entries)} entries ({file_size / (1024 * 1024):.2f}MB)"
     }
