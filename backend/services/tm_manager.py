@@ -175,6 +175,10 @@ class TMManager:
         for entry in sorted_entries:
             entry_normalized = entry.source.strip().lower()
 
+            # Skip very short entries to avoid nonsense prefix matches
+            if len(entry_normalized.split()) < 2:
+                continue
+
             # Sprawdź czy entry jest prefiksem terminu (z word boundary)
             if source_normalized.startswith(entry_normalized + " "):
                 # Znaleziono prefix match - zbuduj pełne tłumaczenie
