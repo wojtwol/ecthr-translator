@@ -272,20 +272,17 @@ class Orchestrator:
                 if len(source_lower) < 3:
                     continue  # Skip very short entries
                 if source_lower in full_text:
-                    # Count occurrences
-                    count = full_text.count(source_lower)
-                    if count >= 2:  # Min 2 occurrences
-                        glossary_terms.append({
-                            "source_term": entry["source"],
-                            "proposed_translation": entry["target"],
-                            "source_type": "glossary",
-                            "confidence": 1.0,
-                            "term_type": "glossary",
-                            "context": "",
-                            "segment_index": 0,
-                            "source_segment": "",
-                        })
-                        glossary_term_keys.add(source_lower)
+                    glossary_terms.append({
+                        "source_term": entry["source"],
+                        "proposed_translation": entry["target"],
+                        "source_type": "glossary",
+                        "confidence": 1.0,
+                        "term_type": "glossary",
+                        "context": "",
+                        "segment_index": 0,
+                        "source_segment": "",
+                    })
+                    glossary_term_keys.add(source_lower)
 
             logger.info(f"Found {len(glossary_terms)} glossary terms in document text (from {len(glossary_entries)} glossary entries)")
 
