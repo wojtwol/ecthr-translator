@@ -169,6 +169,7 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
         document_id: Optional[str] = None,
         ws_manager = None,
         current_progress: float = 0.5,
+        all_segments: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Ekstrahuje terminy prawnicze z segmentów.
@@ -222,7 +223,9 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
         logger.info(f"Extracted {len(all_terms)} unique terms from {len(segments)} segments")
 
         # Filter by frequency: keep only terms appearing 3+ times in the document
-        all_terms = self._filter_by_frequency(all_terms, segments, min_occurrences=3)
+        # Use all_segments (full document) if provided, otherwise fall back to batch segments
+        frequency_segments = all_segments if all_segments is not None else segments
+        all_terms = self._filter_by_frequency(all_terms, frequency_segments, min_occurrences=3)
 
         # Wzbogać terminy o wyniki z baz orzeczeń (HUDOC, CURIA, IATE)
         if self.enable_case_law_research and all_terms:
@@ -266,7 +269,7 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
 
             response = self.client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=1000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -313,7 +316,7 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
             return ""
 
         lines = []
-        for term in known_terms[:20]:  # Ogranicz do 20 terminów
+        for term in known_terms[:100]:  # Ogranicz do 100 terminów
             source = term.get("source", "")
             target = term.get("target", "")
             if source and target:

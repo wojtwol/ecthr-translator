@@ -294,7 +294,7 @@ class Orchestrator:
                     )
 
                 # Faza 3: Ekstrakcja terminów dla tego batcha
-                batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress)
+                batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress, all_segments=parsed_segments)
                 all_extracted_terms.extend(batch_terms)
 
                 logger.info(f"Batch {batch_idx + 1}: Extracted {len(batch_terms)} terms")
