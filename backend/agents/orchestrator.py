@@ -126,13 +126,28 @@ class Orchestrator:
             # Lazy load TM before Phase 3 (first use)
             self._ensure_tm_loaded()
 
+            # Faza 2.5: Glosariusze (TBX) - NAJWYŻSZY PRIORYTET
+            full_text = " ".join(seg.get("text", "") for seg in parsed_segments).lower()
+            glossary_entries = self.tm_manager.get_glossary_entries(limit=5000)
+            glossary_term_keys = set()
+            glossary_terminology = {}
+
+            for entry in glossary_entries:
+                source_lower = entry["source"].lower()
+                if len(source_lower) < 3:
+                    continue
+                if source_lower in full_text:
+                    glossary_terminology[entry["source"]] = entry["target"]
+                    glossary_term_keys.add(entry["source"].lower().strip())
+
+            logger.info(f"Found {len(glossary_term_keys)} glossary terms in document text")
+
             # Faza 3: Ekstrakcja terminów
             logger.info("Phase 3: Extracting terms")
 
-            # Przygotuj znane terminy z TM
-            known_terms = []
+            # Przygotuj znane terminy z glosariuszy + TM
+            known_terms = [{"source": k, "target": v} for k, v in glossary_terminology.items()]
             for segment in parsed_segments:
-                # Spróbuj znaleźć exact match w TM
                 tm_match = self.tm_manager.find_exact(segment.get("text", ""))
                 if tm_match:
                     known_terms.append(
@@ -147,23 +162,24 @@ class Orchestrator:
             logger.info(f"Extracted {len(extracted_terms)} new terms")
 
             # Faza 4: Wstępne tłumaczenie (dla demo)
-            # W pełnej wersji tutaj czekamy na walidację użytkownika
             logger.info("Phase 4: Generating draft translation")
 
-            # Przygotuj terminologię (połącz TM + nowe terminy)
-            terminology = {}
+            # Przygotuj terminologię (glosariusz + TM + nowe terminy)
+            terminology = dict(glossary_terminology)  # Glossary first
 
-            # Dodaj znane terminy z TM
-            for term in known_terms[:50]:  # Ogranicz do 50
-                terminology[term["source"]] = term["target"]
+            # Dodaj znane terminy z TM (nie nadpisuj glosariusza)
+            for term in known_terms[:50]:
+                if term["source"] not in terminology:
+                    terminology[term["source"]] = term["target"]
 
             # Dodaj nowe terminy (z proposed_translation)
-            for term in extracted_terms[:30]:  # Ogranicz do 30
-                terminology[term["source_term"]] = term["proposed_translation"]
+            for term in extracted_terms[:30]:
+                if term["source_term"] not in terminology:
+                    terminology[term["source_term"]] = term["proposed_translation"]
 
             # Tłumacz segmenty
             translated_segments = await self.translator.translate(
-                parsed_segments, terminology
+                parsed_segments, terminology, glossary_terms=glossary_term_keys
             )
 
             logger.info(
@@ -300,6 +316,14 @@ class Orchestrator:
 
             num_batches = (len(parsed_segments) + batch_size - 1) // batch_size
 
+            # Wyślij terminy z glosariusza jako "batch 0" przed właściwymi batchami
+            if on_batch_ready and glossary_terms:
+                try:
+                    logger.info(f"Sending {len(glossary_terms)} glossary terms via callback (pre-batch)")
+                    await on_batch_ready(glossary_terms, [], False, 0, num_batches)
+                except Exception as e:
+                    logger.error(f"Error in glossary batch callback: {e}", exc_info=True)
+
             for batch_idx in range(num_batches):
                 start_idx = batch_idx * batch_size
                 end_idx = min(start_idx + batch_size, len(parsed_segments))
@@ -336,7 +360,7 @@ class Orchestrator:
 
                 # Faza 4: Tłumaczenie tego batcha
                 translated_batch = await self.translator.translate(
-                    batch_segments, batch_terminology, document_id=document_id, ws_manager=ws_manager
+                    batch_segments, batch_terminology, glossary_terms=glossary_term_keys, document_id=document_id, ws_manager=ws_manager
                 )
                 all_translated_segments.extend(translated_batch)
 
@@ -554,29 +578,51 @@ class Orchestrator:
             # Lazy load TM before Phase 3
             self._ensure_tm_loaded()
 
-            # Faza 3: Przygotuj terminologię z TM + opcjonalnie HUDOC/CURIA
-            logger.info("Phase 3: Loading terminology from TM + optional case law databases")
+            # Faza 3: Przygotuj terminologię z glosariuszy (TBX) + TM + opcjonalnie HUDOC/CURIA
+            logger.info("Phase 3: Loading terminology from glossaries + TM + optional case law databases")
 
             if ws_manager:
                 await ws_manager.broadcast_progress(
                     document_id, "loading_terminology", 0.30,
-                    "📚 Wczytuję pamięć tłumaczeniową..."
+                    "📚 Wczytuję glosariusze i pamięć tłumaczeniową..."
                 )
 
             terminology = {}
+            glossary_term_keys = set()
 
-            # Zbierz znane terminy z TM dla każdego segmentu
+            # KROK 1: Glosariusze (TBX) - NAJWYŻSZY PRIORYTET
+            full_text = " ".join(seg.get("text", "") for seg in parsed_segments).lower()
+            glossary_entries = self.tm_manager.get_glossary_entries(limit=5000)
+
+            for entry in glossary_entries:
+                source_lower = entry["source"].lower()
+                if len(source_lower) < 3:
+                    continue
+                if source_lower in full_text:
+                    terminology[entry["source"]] = entry["target"]
+                    glossary_term_keys.add(entry["source"].lower().strip())
+
+            logger.info(f"Found {len(glossary_term_keys)} glossary terms in document text (from {len(glossary_entries)} glossary entries)")
+
+            if ws_manager:
+                await ws_manager.broadcast_progress(
+                    document_id, "loading_glossary", 0.32,
+                    f"✓ Znaleziono {len(glossary_term_keys)} terminów z glosariuszy"
+                )
+
+            # KROK 2: TM exact matches (niższy priorytet - nie nadpisuje glosariusza)
             for segment in parsed_segments:
                 tm_match = self.tm_manager.find_exact(segment.get("text", ""))
                 if tm_match:
-                    terminology[tm_match.source] = tm_match.target
+                    if tm_match.source not in terminology:  # Don't overwrite glossary terms
+                        terminology[tm_match.source] = tm_match.target
 
-            logger.info(f"Loaded {len(terminology)} terms from Translation Memory")
+            logger.info(f"Loaded {len(terminology)} total terms (glossary + TM)")
 
             if ws_manager:
                 await ws_manager.broadcast_progress(
                     document_id, "loading_tm", 0.35,
-                    f"✓ Wczytano {len(terminology)} terminów z pamięci tłumaczeniowej"
+                    f"✓ Wczytano {len(terminology)} terminów (glosariusze + pamięć tłumaczeniowa)"
                 )
 
             # Opcjonalnie wzbogać terminologię z HUDOC/CURIA/IATE
@@ -659,7 +705,7 @@ class Orchestrator:
             # Create translator with TM support and callback for live updates
             translator = Translator(tm_manager=self.tm_manager, on_segment_translated=on_segment_translated)
             translated_segments = await translator.translate(
-                parsed_segments, terminology
+                parsed_segments, terminology, glossary_terms=glossary_term_keys
             )
 
             logger.info(

@@ -324,7 +324,9 @@ Segment do tłumaczenia:
 
 Typ sekcji: {section_type}
 
-OBOWIĄZKOWA TERMINOLOGIA (użyj dokładnie tych ekwiwalentów):
+{glossary_section}
+
+TERMINOLOGIA Z PAMIĘCI TŁUMACZENIOWEJ (użyj tych ekwiwalentów):
 {terminology_table}
 
 Kontekst (poprzednie przetłumaczone segmenty):
@@ -338,7 +340,8 @@ Kontekst (poprzednie przetłumaczone segmenty):
 4. NIE dodawaj wyjaśnień, interpretacji ani kontekstu
 5. Jeśli źródło jest niekompletne lub niejasne, tłumacz je tak jak jest
 6. Numery paragrafów jak [35], [36] są częścią źródła - zachowaj je dokładnie
-7. Używaj WYŁĄCZNIE terminologii z powyższej listy i słownika OBOWIĄZKOWEJ TERMINOLOGII
+7. PRIORYTET TERMINOLOGICZNY: Glosariusz > Pamięć tłumaczeniowa > Własna propozycja
+8. Terminy z GLOSARIUSZA muszą być użyte BEZWZGLĘDNIE - to oficjalna terminologia
 
 Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć tylko tłumaczenie."""
 
@@ -352,6 +355,7 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         self.client = Anthropic(api_key=settings.anthropic_api_key)
         self.tm_manager = tm_manager
         self.translation_context = []  # Kontekst ostatnich tłumaczeń
+        self.glossary_terms = set()  # Glossary term keys (lowercase)
         self.on_segment_translated = on_segment_translated
         logger.info("Translator initialized with TM support" if tm_manager else "Translator initialized without TM")
 
@@ -359,6 +363,7 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         self,
         segments: List[Dict[str, Any]],
         terminology: Dict[str, str],
+        glossary_terms: set = None,
         document_id: Optional[str] = None,
         ws_manager = None,
     ) -> List[Dict[str, Any]]:
@@ -368,12 +373,14 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         Args:
             segments: Lista segmentów do przetłumaczenia
             terminology: Słownik terminologii {source: target}
+            glossary_terms: Set of lowercased source terms from glossary (highest priority)
             document_id: ID dokumentu (do progress updates)
             ws_manager: WebSocket manager (do progress updates)
 
         Returns:
             Lista przetłumaczonych segmentów
         """
+        self.glossary_terms = glossary_terms or set()
         translated_segments = []
         self.translation_context = []
 
@@ -476,8 +483,14 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         Returns:
             Przetłumaczony tekst
         """
-        # Przygotuj tabelę terminologii
-        terminology_table = self._format_terminology(terminology, source_text)
+        # Przygotuj tabelę terminologii (rozdziel glosariusz od TM)
+        glossary_table, tm_table = self._format_terminology(terminology, source_text)
+
+        # Przygotuj sekcję glosariusza
+        if glossary_table:
+            glossary_section = f"GLOSARIUSZ (NAJWYŻSZY PRIORYTET - użyj BEZWZGLĘDNIE tych ekwiwalentów):\n{glossary_table}"
+        else:
+            glossary_section = ""
 
         # Przygotuj kontekst
         context_text = self._format_context()
@@ -486,7 +499,8 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
         prompt = self.TRANSLATOR_PROMPT.format(
             source_text=source_text,
             section_type=section_type,
-            terminology_table=terminology_table or "Brak terminologii",
+            glossary_section=glossary_section,
+            terminology_table=tm_table or "Brak terminologii",
             context=context_text or "Brak kontekstu",
         )
 
@@ -513,38 +527,37 @@ Przetłumacz segment. Nie dodawaj żadnych komentarzy ani wyjaśnień. Zwróć t
 
     def _format_terminology(
         self, terminology: Dict[str, str], source_text: str
-    ) -> str:
+    ) -> tuple:
         """
-        Formatuje terminologię dla promptu.
+        Formatuje terminologię dla promptu, rozdzielając glosariusz od TM.
 
         Args:
             terminology: Słownik terminologii
             source_text: Tekst źródłowy (dla filtrowania)
 
         Returns:
-            Sformatowana tabela terminologii
+            Tuple (glossary_table, tm_table) - dwie sformatowane tabele
         """
         if not terminology:
-            return ""
+            return ("", "")
 
         # Filtruj tylko terminy występujące w tym segmencie
-        relevant_terms = {}
         source_lower = source_text.lower()
+
+        glossary_lines = []
+        tm_lines = []
 
         for source_term, target_term in terminology.items():
             if source_term.lower() in source_lower:
-                relevant_terms[source_term] = target_term
+                if source_term.lower().strip() in self.glossary_terms:
+                    glossary_lines.append(f"| {source_term} | {target_term} |")
+                else:
+                    tm_lines.append(f"| {source_term} | {target_term} |")
 
-        # Jeśli nie ma relevantnych terminów, zwróć pusty string
-        if not relevant_terms:
-            return ""
+        glossary_table = "\n".join(glossary_lines) if glossary_lines else ""
+        tm_table = "\n".join(tm_lines) if tm_lines else ""
 
-        # Zbuduj tabelę
-        lines = []
-        for source_term, target_term in relevant_terms.items():
-            lines.append(f"| {source_term} | {target_term} |")
-
-        return "\n".join(lines)
+        return (glossary_table, tm_table)
 
     def _format_context(self) -> str:
         """

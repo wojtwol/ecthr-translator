@@ -63,6 +63,7 @@ async def get_glossary(
         edited=len([t for t in all_terms if t.status == "edited"]),
         rejected=len([t for t in all_terms if t.status == "rejected"]),
         # Source breakdown
+        from_glossary=len([t for t in all_terms if t.source_type == "glossary"]),
         from_hudoc=len([t for t in all_terms if t.source_type == "hudoc"]),
         from_curia=len([t for t in all_terms if t.source_type == "curia"]),
         from_iate=len([t for t in all_terms if t.source_type == "iate"]),

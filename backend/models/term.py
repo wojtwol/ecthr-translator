@@ -95,6 +95,7 @@ class GlossaryStats(BaseModel):
     rejected: int
 
     # Source breakdown
+    from_glossary: int = 0
     from_hudoc: int = 0
     from_curia: int = 0
     from_iate: int = 0
