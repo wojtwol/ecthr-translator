@@ -19,6 +19,7 @@ from db.database import get_db
 from db import models
 from agents.orchestrator import Orchestrator
 from routers.websocket import get_connection_manager
+from routers.tm_management import get_tm_manager
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,15 @@ orchestrator = None
 
 
 def get_orchestrator():
-    """Get or create orchestrator instance."""
+    """Get or create orchestrator instance, always using the current global TM Manager."""
     global orchestrator
+    tm = get_tm_manager()
     if orchestrator is None:
-        orchestrator = Orchestrator()
+        orchestrator = Orchestrator(tm_manager=tm)
+    else:
+        # Always sync with the latest TM Manager (user may have uploaded new TMs)
+        orchestrator.tm_manager = tm
+        orchestrator.translator.tm_manager = tm
     return orchestrator
 
 

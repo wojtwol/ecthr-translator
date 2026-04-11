@@ -42,11 +42,15 @@ class TranslationResult:
 class Orchestrator:
     """Zarządza całym workflow tłumaczenia."""
 
-    def __init__(self):
-        """Inicjalizacja Orchestrator."""
+    def __init__(self, tm_manager: MultiTMManager = None):
+        """Inicjalizacja Orchestrator.
+
+        Args:
+            tm_manager: Shared MultiTMManager instance. If None, creates a new one.
+        """
         self.format_handler = FormatHandler()
         self.structure_parser = StructureParser()
-        self.tm_manager = MultiTMManager()  # NEW: Multi-TM support
+        self.tm_manager = tm_manager or MultiTMManager()
         self.term_extractor = TermExtractor()
         self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
