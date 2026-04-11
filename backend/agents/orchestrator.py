@@ -299,6 +299,20 @@ class Orchestrator:
 
                 # Faza 3: Ekstrakcja terminów dla tego batcha
                 batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress, all_segments=parsed_segments)
+
+                # Override AI proposals with glossary translations (priority-based)
+                for term in batch_terms:
+                    source = term.get("source_term", "")
+                    if not source:
+                        continue
+                    # Check exact match in TM (respects priority order)
+                    tm_match = self.tm_manager.find_exact(source)
+                    if tm_match:
+                        term["proposed_translation"] = tm_match.target
+                        term["source_type"] = "tm_exact"
+                        term["confidence"] = 1.0
+                        logger.info(f"Glossary override: '{source}' → '{tm_match.target}' (from TM '{tm_match.tm_name}')")
+
                 all_extracted_terms.extend(batch_terms)
 
                 logger.info(f"Batch {batch_idx + 1}: Extracted {len(batch_terms)} terms")
