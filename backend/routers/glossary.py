@@ -1,5 +1,6 @@
 """Glossary management endpoints."""
 
+import logging
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse, Response
 from typing import List, Dict
@@ -25,6 +26,8 @@ from models.term import (
 )
 from db.database import get_db
 from db import models
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/glossary", tags=["glossary"])
 
@@ -68,8 +71,10 @@ async def get_glossary(
         from_curia=len([t for t in all_terms if t.source_type == "curia"]),
         from_iate=len([t for t in all_terms if t.source_type == "iate"]),
         from_tm_exact=len([t for t in all_terms if t.source_type == "tm_exact"]),
+        from_tm_prefix=len([t for t in all_terms if t.source_type == "tm_prefix"]),
         from_tm_fuzzy=len([t for t in all_terms if t.source_type == "tm_fuzzy"]),
         from_proposed=len([t for t in all_terms if t.source_type == "proposed"]),
+        from_manual=len([t for t in all_terms if t.source_type == "manual"]),
     )
 
     # FIXED: Create a NEW query for paginated results (don't reuse executed query)
@@ -119,10 +124,23 @@ async def get_glossary(
             "created_at": t.created_at,
             "updated_at": t.updated_at,
         }
-        terms_list.append(Term(**term_dict))
+        try:
+            terms_list.append(Term(**term_dict))
+        except Exception as e:
+            logger.warning(f"Skipping term {t.id} with invalid data: {e}")
+            continue
+
+    # Total: filtered count when filter active, otherwise all terms
+    if status != "all":
+        filtered_total = db.query(models.Term).filter(
+            models.Term.document_id == document_id,
+            models.Term.status == status
+        ).count()
+    else:
+        filtered_total = len(all_terms)
 
     return GlossaryResponse(
-        total=query.count() if status != "all" else len(all_terms),
+        total=filtered_total,
         stats=stats,
         terms=terms_list,
     )
@@ -391,12 +409,15 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
         return None, None, None
 
     # Group terms by source type
+    glossary_terms = []
     hudoc_terms = []
     curia_terms = []
     iate_terms = []
     tm_exact_terms = []
+    tm_prefix_terms = []
     tm_fuzzy_terms = []
     proposed_terms = []
+    manual_terms = []
 
     for t in all_terms:
         case_name, case_url, context = extract_case_info(t.references)
@@ -411,7 +432,9 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
             status=t.status,
         )
 
-        if t.source_type == "hudoc":
+        if t.source_type == "glossary":
+            glossary_terms.append(item)
+        elif t.source_type == "hudoc":
             hudoc_terms.append(item)
         elif t.source_type == "curia":
             curia_terms.append(item)
@@ -419,18 +442,25 @@ async def get_sources_report(document_id: str, db: Session = Depends(get_db)):
             iate_terms.append(item)
         elif t.source_type == "tm_exact":
             tm_exact_terms.append(item)
+        elif t.source_type == "tm_prefix":
+            tm_prefix_terms.append(item)
         elif t.source_type == "tm_fuzzy":
             tm_fuzzy_terms.append(item)
-        elif t.source_type == "proposed":
+        elif t.source_type == "manual":
+            manual_terms.append(item)
+        else:
             proposed_terms.append(item)
 
     return SourceReport(
+        glossary_terms=glossary_terms,
         hudoc_terms=hudoc_terms,
         curia_terms=curia_terms,
         iate_terms=iate_terms,
         tm_exact_terms=tm_exact_terms,
+        tm_prefix_terms=tm_prefix_terms,
         tm_fuzzy_terms=tm_fuzzy_terms,
         proposed_terms=proposed_terms,
+        manual_terms=manual_terms,
     )
 
 

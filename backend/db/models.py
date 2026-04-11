@@ -33,6 +33,7 @@ class Segment(Base):
     format_metadata = Column(JSON, nullable=True)
     status = Column(String(50), default="pending")  # pending, translated, reviewed
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Term(Base):
@@ -44,7 +45,7 @@ class Term(Base):
     document_id = Column(String(50), ForeignKey("documents.id"), nullable=False)
     source_term = Column(String(500), nullable=False)
     target_term = Column(String(500), nullable=True)
-    source_type = Column(String(50), nullable=False)  # tm_exact, tm_fuzzy, hudoc, curia, proposed
+    source_type = Column(String(50), nullable=False)  # glossary, tm_exact, tm_prefix, tm_fuzzy, hudoc, curia, iate, proposed, manual
     confidence = Column(Float, nullable=False)
     status = Column(String(50), default="pending")  # pending, approved, edited, rejected
     original_proposal = Column(String(500), nullable=True)

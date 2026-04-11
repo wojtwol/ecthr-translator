@@ -23,15 +23,24 @@ class CaseLawResearcher:
       (TM > HUDOC > CURIA > IATE)
     """
 
-    def __init__(self):
-        """Inicjalizacja Case Law Researcher."""
-        # Initialize TM Manager FIRST - highest priority source
-        self.tm_manager = TMManager()
-        try:
-            tm_count = self.tm_manager.load()
-            logger.info(f"Loaded {tm_count} entries from Translation Memory")
-        except Exception as e:
-            logger.warning(f"Failed to load TM: {e}. Continuing without TM.")
+    def __init__(self, tm_manager=None):
+        """Inicjalizacja Case Law Researcher.
+
+        Args:
+            tm_manager: Shared TM manager instance (MultiTMManager or TMManager).
+                       If None, creates a standalone TMManager (legacy behavior).
+        """
+        # Use shared TM manager if provided, otherwise create standalone
+        if tm_manager is not None:
+            self.tm_manager = tm_manager
+            logger.info("Case Law Researcher using shared TM manager")
+        else:
+            self.tm_manager = TMManager()
+            try:
+                tm_count = self.tm_manager.load()
+                logger.info(f"Loaded {tm_count} entries from Translation Memory")
+            except Exception as e:
+                logger.warning(f"Failed to load TM: {e}. Continuing without TM.")
 
         # Initialize database clients
         self.hudoc_client = HUDOCClient()

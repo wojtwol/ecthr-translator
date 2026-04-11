@@ -101,8 +101,10 @@ class GlossaryStats(BaseModel):
     from_curia: int = 0
     from_iate: int = 0
     from_tm_exact: int = 0
+    from_tm_prefix: int = 0
     from_tm_fuzzy: int = 0
     from_proposed: int = 0
+    from_manual: int = 0
 
 
 class GlossaryResponse(BaseModel):
@@ -128,12 +130,15 @@ class SourceReportItem(BaseModel):
 class SourceReport(BaseModel):
     """Detailed report of term sources."""
 
+    glossary_terms: List[SourceReportItem] = []
     hudoc_terms: List[SourceReportItem] = []
     curia_terms: List[SourceReportItem] = []
     iate_terms: List[SourceReportItem] = []
     tm_exact_terms: List[SourceReportItem] = []
+    tm_prefix_terms: List[SourceReportItem] = []
     tm_fuzzy_terms: List[SourceReportItem] = []
     proposed_terms: List[SourceReportItem] = []
+    manual_terms: List[SourceReportItem] = []
 
 
 class ManualTermCreate(BaseModel):

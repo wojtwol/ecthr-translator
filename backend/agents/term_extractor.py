@@ -134,17 +134,19 @@ Odpowiedz w formacie JSON:
 
 Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"terms": []}}"""
 
-    def __init__(self, enable_case_law_research: bool = True):
+    def __init__(self, enable_case_law_research: bool = True, tm_manager=None):
         """
         Inicjalizacja Term Extractor.
 
         Args:
             enable_case_law_research: Czy włączyć wzbogacanie terminów z baz orzeczeń
+            tm_manager: Shared TM manager instance to pass to CaseLawResearcher
         """
         self.client = Anthropic(api_key=settings.anthropic_api_key)
         self.extracted_terms_cache = {}  # Cache dla już wyekstrahowanych terminów
         self.enable_case_law_research = enable_case_law_research
         self.case_law_researcher = None
+        self._shared_tm_manager = tm_manager
         logger.info(f"Term Extractor initialized (case law research: {enable_case_law_research})")
 
     def _get_case_law_researcher(self):
@@ -159,7 +161,7 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
 
         if self.case_law_researcher is None:
             from agents.case_law_researcher import CaseLawResearcher
-            self.case_law_researcher = CaseLawResearcher()
+            self.case_law_researcher = CaseLawResearcher(tm_manager=self._shared_tm_manager)
 
         return self.case_law_researcher
 

@@ -66,7 +66,8 @@ async def start_translation(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    if document.status != "uploaded":
+    allowed_statuses = ["uploaded", "error", "completed", "validating"]
+    if document.status not in allowed_statuses:
         raise HTTPException(
             status_code=400,
             detail=f"Document not ready for translation. Current status: {document.status}",
@@ -105,10 +106,11 @@ async def start_translation(
     db.commit()
     db.refresh(job)
 
-    # Start translation in background
-    asyncio.create_task(
+    # Start translation in background (store reference to prevent GC)
+    task = asyncio.create_task(
         _run_translation(job.id, document_id, str(document.original_path), config)
     )
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
     logger.info(f"Translation started for document {document_id}, job {job.id}")
 
@@ -209,8 +211,9 @@ async def finalize_translation(document_id: str, db: Session = Depends(get_db)):
     job.current_step = "Finalizing translation with validated terminology..."
     db.commit()
 
-    # Start finalization in background
-    asyncio.create_task(_run_finalization(job.id, document_id, db))
+    # Start finalization in background (store reference to prevent GC)
+    task = asyncio.create_task(_run_finalization(job.id, document_id))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
     logger.info(f"Finalization started for document {document_id}")
 
@@ -546,14 +549,13 @@ async def _run_translation(
         db.close()
 
 
-async def _run_finalization(job_id: str, document_id: str, db: Session):
+async def _run_finalization(job_id: str, document_id: str):
     """
     Run finalization with Change Implementer and QA Reviewer (Sprint 5).
 
     Args:
         job_id: Translation job ID
         document_id: Document ID
-        db: Database session
     """
     from db.database import SessionLocal
 

@@ -51,7 +51,7 @@ class Orchestrator:
         self.format_handler = FormatHandler()
         self.structure_parser = StructureParser()
         self.tm_manager = tm_manager or MultiTMManager()
-        self.term_extractor = TermExtractor()
+        self.term_extractor = TermExtractor(tm_manager=self.tm_manager)
         self.translator = Translator(tm_manager=self.tm_manager)
         self.change_implementer = ChangeImplementer()
         self.qa_reviewer = QAReviewer()
@@ -489,6 +489,9 @@ class Orchestrator:
                     logger.warning(f"Citation detection failed (non-critical): {e}")
                     # Continue with normal flow - this is optional feature
 
+            # Lazy load TM before CJEU processing and glossary scanning
+            self._ensure_tm_loaded()
+
             # Phase 2.5: CJEU Citation Pre-processing
             # Detect CJEU judgments cited in text and add them to TM
             logger.info("Phase 2.5: Detecting CJEU citations and fetching judgments")
@@ -574,9 +577,6 @@ class Orchestrator:
             except Exception as e:
                 logger.warning(f"CJEU citation processing failed (non-critical): {e}")
                 # Continue with normal flow
-
-            # Lazy load TM before Phase 3
-            self._ensure_tm_loaded()
 
             # Faza 3: Przygotuj terminologię z glosariuszy (TBX) + TM + opcjonalnie HUDOC/CURIA
             logger.info("Phase 3: Loading terminology from glossaries + TM + optional case law databases")

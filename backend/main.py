@@ -8,7 +8,7 @@ from pathlib import Path
 import logging
 
 from config import settings
-from routers import documents, translation, glossary, websocket, tm_management, tm, auth
+from routers import documents, translation, glossary, websocket, tm_management, auth
 from routers.auth import require_auth
 from db.database import init_db
 
@@ -54,7 +54,6 @@ app.include_router(documents.router, prefix="/api", dependencies=[Depends(requir
 app.include_router(translation.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(glossary.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(tm_management.router, prefix="/api", dependencies=[Depends(require_auth)])
-app.include_router(tm.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(websocket.router)
 
 
@@ -67,7 +66,6 @@ async def startup_event():
     import shutil
     from pathlib import Path
 
-    os.makedirs("/tmp/data", exist_ok=True)
     os.makedirs(settings.tm_path, exist_ok=True)
     os.makedirs(settings.upload_path, exist_ok=True)
     os.makedirs(settings.output_path, exist_ok=True)
@@ -77,19 +75,19 @@ async def startup_event():
     # This ensures default terminology is always available
     repo_tm_dir = Path(__file__).parent.parent / "tm"
     if repo_tm_dir.exists():
-        tmx_files = list(repo_tm_dir.glob("*.tmx"))
-        if tmx_files:
-            logger.info(f"Copying {len(tmx_files)} bundled TM files to {settings.tm_path}")
-            for tmx_file in tmx_files:
-                dest = settings.tm_path / tmx_file.name
+        tm_files = list(repo_tm_dir.glob("*.tmx")) + list(repo_tm_dir.glob("*.tbx"))
+        if tm_files:
+            logger.info(f"Copying {len(tm_files)} bundled TM/glossary files to {settings.tm_path}")
+            for tm_file in tm_files:
+                dest = settings.tm_path / tm_file.name
                 # Only copy if doesn't exist or is older than source
-                if not dest.exists() or tmx_file.stat().st_mtime > dest.stat().st_mtime:
-                    shutil.copy2(tmx_file, dest)
-                    logger.info(f"  ✓ Copied {tmx_file.name}")
+                if not dest.exists() or tm_file.stat().st_mtime > dest.stat().st_mtime:
+                    shutil.copy2(tm_file, dest)
+                    logger.info(f"  Copied {tm_file.name}")
                 else:
-                    logger.info(f"  → {tmx_file.name} (already up-to-date)")
+                    logger.info(f"  {tm_file.name} (already up-to-date)")
         else:
-            logger.warning(f"No TMX files found in {repo_tm_dir}")
+            logger.warning(f"No TMX/TBX files found in {repo_tm_dir}")
     else:
         logger.warning(f"Bundled TM directory not found: {repo_tm_dir}")
 
