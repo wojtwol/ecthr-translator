@@ -9,6 +9,7 @@ from enum import Enum
 class TermSource(str, Enum):
     """Source of the term translation."""
 
+    GLOSSARY = "glossary"  # From TBX glossary files (highest priority)
     TM_EXACT = "tm_exact"
     TM_PREFIX = "tm_prefix"  # Prefix match (e.g., "Article" -> "art." applied to "Article 44 2" -> "art. 44 2")
     TM_FUZZY = "tm_fuzzy"
