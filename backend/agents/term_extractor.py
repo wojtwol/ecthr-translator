@@ -292,7 +292,9 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                 if raw_text.endswith("```"):
                     raw_text = raw_text[:-3].strip()
 
-            result = json.loads(raw_text)
+            # Use JSONDecoder to handle extra text after JSON
+            decoder = json.JSONDecoder()
+            result, _ = decoder.raw_decode(raw_text)
             terms = result.get("terms", [])
 
             # Waliduj i normalizuj terminy
@@ -409,9 +411,10 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
         ):
             return False
 
+        # Odfiltruj imiona i nazwiska (1-2 słowa, obie z wielkiej litery, bez słów kluczowych)
+        source = term["source_term"].strip()
+
         # Odfiltruj jednostki redakcyjne przepisów — to nie są terminy
-        # np. "Article 6", "Article 6 § 1", "Rule 39 § 4", "Section 44(2)",
-        # "paragraph 32", "Protocol No. 14", "art. 5 ust. 3"
         _LEGAL_PROVISION_RE = re.compile(
             r'^(article|art\.?|section|rule|paragraph|para\.?|'
             r'protocol(\s+no\.?)?|annex|schedule|chapter|part|regulation|'
@@ -421,9 +424,6 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
         if _LEGAL_PROVISION_RE.match(source):
             logger.debug(f"Rejected legal provision reference: {source}")
             return False
-
-        # Odfiltruj imiona i nazwiska (1-2 słowa, obie z wielkiej litery, bez słów kluczowych)
-        source = term["source_term"].strip()
         words = source.split()
 
         # Heurystyka: 1-2 słowa, każde zaczyna się wielką literą = prawdopodobnie imię/nazwisko
