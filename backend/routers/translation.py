@@ -405,7 +405,7 @@ async def _run_translation(
                         translation_options = term_data.get("translation_options", [])
                         if translation_options:
                             # Sortuj opcje według priorytetu
-                            priority_order = {"tm_exact": 0, "hudoc": 1, "curia": 2, "iate": 3, "proposed": 4}
+                            priority_order = {"glossary": 0, "tm_exact": 1, "hudoc": 2, "curia": 3, "iate": 4, "proposed": 5}
                             sorted_options = sorted(
                                 translation_options,
                                 key=lambda x: (priority_order.get(x.get("source_type", "proposed"), 999), -x.get("confidence", 0))

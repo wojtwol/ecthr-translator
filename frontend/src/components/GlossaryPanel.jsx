@@ -516,6 +516,7 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
                     {/* Main source type badge */}
                     {term.source_type && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        term.source_type === 'glossary' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
                         term.source_type === 'hudoc' ? 'bg-blue-100 text-blue-800' :
                         term.source_type === 'curia' ? 'bg-indigo-100 text-indigo-800' :
                         term.source_type === 'iate' ? 'bg-purple-100 text-purple-800' :
@@ -524,7 +525,8 @@ const GlossaryPanel = ({ documentId, onTermSelect, onApproveAll, refreshTrigger,
                         term.source_type === 'tm_fuzzy' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {term.source_type === 'hudoc' ? 'HUDOC' :
+                        {term.source_type === 'glossary' ? 'Glosariusz' :
+                         term.source_type === 'hudoc' ? 'HUDOC' :
                          term.source_type === 'curia' ? 'CURIA' :
                          term.source_type === 'iate' ? 'IATE' :
                          term.source_type === 'tm_exact' ? 'TM (100%)' :
