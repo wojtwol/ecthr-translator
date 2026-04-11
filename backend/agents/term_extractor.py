@@ -226,10 +226,9 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
 
         logger.info(f"Extracted {len(all_terms)} unique terms from {len(segments)} segments")
 
-        # Frequency filter disabled — term relevance is determined by
-        # Claude's extraction quality, not by raw occurrence count.
-        # Legal terms like "margin of appreciation" may appear only once
-        # but are critical for consistent translation.
+        # Filter by frequency — min 2 occurrences in full document
+        frequency_segments = all_segments if all_segments is not None else segments
+        all_terms = self._filter_by_frequency(all_terms, frequency_segments, min_occurrences=2)
 
         # Wzbogać terminy o wyniki z baz orzeczeń (HUDOC, CURIA, IATE)
         if self.enable_case_law_research and all_terms:
