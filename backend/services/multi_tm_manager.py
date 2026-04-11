@@ -205,12 +205,11 @@ class MultiTMManager:
             for entry in sorted_entries:
                 entry_normalized = entry.source.strip().lower()
 
-                # Skip very short entries to avoid nonsense prefix matches
-                # e.g. "The" matching "the right to privacy"
-                if len(entry_normalized.split()) < 2:
-                    continue
-
                 if source_normalized.startswith(entry_normalized + " "):
+                    # Prefix must cover at least 50% of the source term length
+                    # to avoid garbage matches like "The" matching "the right to privacy"
+                    if len(entry_normalized) < len(source_normalized) * 0.5:
+                        continue
                     # Found prefix match
                     suffix = source_text[len(entry.source):].strip()
                     translated_term = f"{entry.target} {suffix}".strip()
