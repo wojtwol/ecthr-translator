@@ -205,11 +205,10 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
                     term["segment_index"] = i
                     term["source_segment"] = segment_text
 
-                    # CRITICAL: Cache key includes context to allow same term with different meanings
-                    # Example: "appeal" in "Court of Appeal" vs "filed an appeal" vs "appeal to Ministry"
-                    # Each needs separate entry with different translation
-                    context_snippet = term.get("context", "")[:100]  # First 100 chars for cache key
-                    term_key = f"{term['source_term'].lower()}|{context_snippet.lower()}"
+                    # Deduplicate by source_term only — one term = one translation
+                    # This ensures consistency: "Harju County Court" always gets
+                    # the same Polish translation regardless of context
+                    term_key = term["source_term"].lower().strip()
 
                     if term_key not in self.extracted_terms_cache:
                         self.extracted_terms_cache[term_key] = term
