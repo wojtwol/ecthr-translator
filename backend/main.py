@@ -66,6 +66,9 @@ async def startup_event():
     import shutil
     from pathlib import Path
 
+    # Ensure parent directory for database exists (e.g. /tmp/data for sqlite:////tmp/data/ecthr.db)
+    db_path = settings.database_url.replace("sqlite:///", "")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     os.makedirs(settings.tm_path, exist_ok=True)
     os.makedirs(settings.upload_path, exist_ok=True)
     os.makedirs(settings.output_path, exist_ok=True)
