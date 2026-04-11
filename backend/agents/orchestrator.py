@@ -260,17 +260,46 @@ class Orchestrator:
             # Lazy load TM before using it
             self._ensure_tm_loaded()
 
-            # Przygotuj znane terminy z glosariuszy (TBX)
-            known_terms = self.tm_manager.get_glossary_entries(limit=200)
+            # Faza 2.5: Przeszukaj tekst dokumentu pod kątem glosariuszy (TBX)
+            # Budujemy pełny tekst dokumentu i szukamy trafień z glosariuszy
+            full_text = " ".join(seg.get("text", "") for seg in parsed_segments).lower()
+            glossary_entries = self.tm_manager.get_glossary_entries(limit=5000)
+            glossary_terms = []
+            glossary_term_keys = set()
+
+            for entry in glossary_entries:
+                source_lower = entry["source"].lower()
+                if len(source_lower) < 3:
+                    continue  # Skip very short entries
+                if source_lower in full_text:
+                    # Count occurrences
+                    count = full_text.count(source_lower)
+                    if count >= 2:  # Min 2 occurrences
+                        glossary_terms.append({
+                            "source_term": entry["source"],
+                            "proposed_translation": entry["target"],
+                            "source_type": "glossary",
+                            "confidence": 1.0,
+                            "term_type": "glossary",
+                            "context": "",
+                            "segment_index": 0,
+                            "source_segment": "",
+                        })
+                        glossary_term_keys.add(source_lower)
+
+            logger.info(f"Found {len(glossary_terms)} glossary terms in document text (from {len(glossary_entries)} glossary entries)")
+
+            # Przygotuj known_terms do przekazania AI (żeby nie duplikowało)
+            known_terms = [{"source": t["source_term"], "target": t["proposed_translation"]} for t in glossary_terms]
 
             # Przygotuj terminologię bazową z glosariuszy
             base_terminology = {}
-            for term in known_terms:
-                base_terminology[term["source"]] = term["target"]
+            for term in glossary_terms:
+                base_terminology[term["source_term"]] = term["proposed_translation"]
 
             # Przetwarzaj segmenty w batchach
             all_translated_segments = []
-            all_extracted_terms = []
+            all_extracted_terms = list(glossary_terms)  # Start with glossary terms
 
             num_batches = (len(parsed_segments) + batch_size - 1) // batch_size
 
@@ -291,23 +320,15 @@ class Orchestrator:
                         f"📝 Ekstrahuję terminy prawnicze... (batch {batch_idx + 1}/{num_batches})"
                     )
 
-                # Faza 3: Ekstrakcja terminów dla tego batcha
+                # Faza 3: Ekstrakcja terminów AI (szuka terminów których nie ma w glosariuszu)
                 batch_terms = await self.term_extractor.extract(batch_segments, known_terms, document_id=document_id, ws_manager=ws_manager, current_progress=batch_progress, all_segments=parsed_segments)
 
-                # Override AI proposals with glossary translations (priority-based, TBX only)
+                # Dodaj tylko terminy AI, których nie ma już z glosariusza
                 for term in batch_terms:
-                    source = term.get("source_term", "")
-                    if not source:
-                        continue
-                    # Check exact match in glossaries (TBX files, respects priority order)
-                    tm_match = self.tm_manager.find_glossary_exact(source)
-                    if tm_match:
-                        term["proposed_translation"] = tm_match.target
-                        term["source_type"] = "tm_exact"
-                        term["confidence"] = 1.0
-                        logger.info(f"Glossary override: '{source}' → '{tm_match.target}' (from TM '{tm_match.tm_name}')")
-
-                all_extracted_terms.extend(batch_terms)
+                    key = term.get("source_term", "").lower().strip()
+                    if key and key not in glossary_term_keys:
+                        all_extracted_terms.append(term)
+                        glossary_term_keys.add(key)
 
                 logger.info(f"Batch {batch_idx + 1}: Extracted {len(batch_terms)} terms")
 
