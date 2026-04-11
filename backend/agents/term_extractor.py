@@ -2,6 +2,7 @@
 
 import logging
 import json
+import re
 from typing import List, Dict, Any, Optional
 from anthropic import Anthropic
 from config import settings
@@ -399,6 +400,19 @@ Jeśli nie znalazłeś żadnych nowych terminów, zwróć pustą listę: {{"term
             or len(term["proposed_translation"]) < 2
             or len(term["proposed_translation"]) > 200
         ):
+            return False
+
+        # Odfiltruj jednostki redakcyjne przepisów — to nie są terminy
+        # np. "Article 6", "Article 6 § 1", "Rule 39 § 4", "Section 44(2)",
+        # "paragraph 32", "Protocol No. 14", "art. 5 ust. 3"
+        _LEGAL_PROVISION_RE = re.compile(
+            r'^(article|art\.?|section|rule|paragraph|para\.?|'
+            r'protocol(\s+no\.?)?|annex|schedule|chapter|part|regulation|'
+            r'§)\s*\d',
+            re.IGNORECASE
+        )
+        if _LEGAL_PROVISION_RE.match(source):
+            logger.debug(f"Rejected legal provision reference: {source}")
             return False
 
         # Odfiltruj imiona i nazwiska (1-2 słowa, obie z wielkiej litery, bez słów kluczowych)
