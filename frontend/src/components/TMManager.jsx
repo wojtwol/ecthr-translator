@@ -38,8 +38,9 @@ const TMManager = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.tmx') && !file.name.endsWith('.tbx')) {
-      setError('Only TMX and TBX files are allowed');
+    const isXlsx = file.name.endsWith('.xlsx');
+    if (!file.name.endsWith('.tmx') && !file.name.endsWith('.tbx') && !isXlsx) {
+      setError('Only TMX, TBX, and XLSX files are allowed');
       return;
     }
 
@@ -50,6 +51,26 @@ const TMManager = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
+
+      // XLSX files go to glossary import endpoint
+      if (isXlsx) {
+        formData.append('priority', '1'); // Glossary = highest priority
+        const response = await authFetch(`${API_BASE_URL}/tm/import-glossary-xlsx`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Import failed');
+        }
+        const data = await response.json();
+        setSuccess(`Zaimportowano glosariusz XLSX: ${data.entries_count} terminow (pominieto ${data.skipped_rows} wierszy)`);
+        await fetchMemories();
+        setUploading(false);
+        e.target.value = '';
+        return;
+      }
+
       formData.append('priority', '4'); // Default priority
       formData.append('enabled', 'true');
 
@@ -210,7 +231,7 @@ const TMManager = () => {
           <label className="flex-1">
             <input
               type="file"
-              accept=".tmx,.tbx"
+              accept=".tmx,.tbx,.xlsx"
               onChange={handleUpload}
               disabled={uploading}
               className="block w-full text-sm text-gray-500
@@ -224,7 +245,7 @@ const TMManager = () => {
           </label>
         </div>
         <p className="mt-2 text-xs text-blue-700">
-          Obsługiwane formaty: .tmx, .tbx | Nowa pamięć otrzyma domyślny priorytet 4 (Niski)
+          Obsługiwane formaty: .tmx, .tbx, .xlsx (glosariusz) | TMX/TBX: priorytet 4, XLSX glosariusz: priorytet 1
         </p>
       </div>
 

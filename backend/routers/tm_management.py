@@ -1,14 +1,19 @@
 """Translation Memory Management API."""
 
+import re
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from pathlib import Path
+from lxml import etree
 import uuid
 import logging
 
 from services.multi_tm_manager import MultiTMManager
+from db.database import get_db
+from db import models
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -344,3 +349,237 @@ async def save_tm_to_file(
         "message": f"Saved TM '{tm_name}' with {len(tm.entries)} entries",
         "file_path": tm.file_path
     }
+
+
+def _strip_leading_numbering(text: str) -> str:
+    """Usuwa numerację z początku segmentu (jak Trados)."""
+    if not text:
+        return text
+    patterns = [
+        r'^\d+\s*\.\s*',
+        r'^\(\s*[a-zA-Z0-9]+\s*\)\s*',
+        r'^§\s*\d+\s*\.?\s*',
+        r'^[a-zA-Z0-9]+\s*\)\s*',
+    ]
+    result = text
+    for pattern in patterns:
+        result = re.sub(pattern, '', result)
+        if result != text:
+            break
+    return result.strip()
+
+
+@router.get("/export/{document_id}")
+async def export_project_tm(document_id: str, db: Session = Depends(get_db)):
+    """
+    Eksport pamięci tłumaczeniowej z danego projektu jako TMX.
+
+    Args:
+        document_id: ID dokumentu/projektu
+
+    Returns:
+        Plik TMX z segmentami z tego projektu
+    """
+    try:
+        logger.info(f"Exporting TM for document: {document_id}")
+
+        db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+        if not db_document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        segments = (
+            db.query(models.Segment)
+            .filter(models.Segment.document_id == document_id)
+            .filter(models.Segment.target_text.isnot(None))
+            .filter(models.Segment.target_text != "")
+            .order_by(models.Segment.index)
+            .all()
+        )
+
+        if not segments:
+            raise HTTPException(status_code=404, detail="No translated segments found")
+
+        # Build TMX XML
+        tmx = etree.Element("tmx", version="1.4")
+        etree.SubElement(tmx, "header",
+            creationtool="ECTHR-Translator",
+            creationtoolversion="2.0",
+            segtype="sentence",
+            adminlang="en",
+            srclang="en",
+            datatype="plaintext",
+        )
+        body = etree.SubElement(tmx, "body")
+
+        entry_count = 0
+        for seg in segments:
+            if seg.source_text and seg.target_text:
+                src_clean = _strip_leading_numbering(seg.source_text)
+                tgt_clean = _strip_leading_numbering(seg.target_text)
+
+                if src_clean and tgt_clean:
+                    tu = etree.SubElement(body, "tu")
+                    src_tuv = etree.SubElement(tu, "tuv")
+                    src_tuv.set("{http://www.w3.org/XML/1998/namespace}lang", "en")
+                    src_seg = etree.SubElement(src_tuv, "seg")
+                    src_seg.text = src_clean
+
+                    tgt_tuv = etree.SubElement(tu, "tuv")
+                    tgt_tuv.set("{http://www.w3.org/XML/1998/namespace}lang", "pl")
+                    tgt_seg = etree.SubElement(tgt_tuv, "seg")
+                    tgt_seg.text = tgt_clean
+
+                    entry_count += 1
+
+        # Save to file
+        export_filename = f"tm_export_{document_id}.tmx"
+        file_path = settings.tm_path / export_filename
+
+        tree = etree.ElementTree(tmx)
+        tree.write(str(file_path), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+
+        logger.info(f"Exported {entry_count} TM entries for document {document_id}")
+
+        return FileResponse(
+            path=str(file_path),
+            filename=export_filename,
+            media_type="application/xml"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting project TM: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import-glossary-xlsx")
+async def import_glossary_xlsx(
+    file: UploadFile = File(...),
+    priority: int = 1,
+    tm_manager: MultiTMManager = Depends(get_tm_manager)
+):
+    """
+    Import glosariusza z pliku XLSX.
+
+    Oczekiwany format kolumn:
+    - Kolumna 1: Source Term (EN)
+    - Kolumna 2: Target Term (PL)
+
+    Args:
+        file: Plik XLSX z glosariuszem
+        priority: Priorytet 1-5 (domyślnie 1 = najwyższy)
+
+    Returns:
+        Info o zaimportowanym glosariuszu
+    """
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are allowed")
+
+    try:
+        from openpyxl import load_workbook
+        import tempfile
+
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        # Read XLSX
+        wb = load_workbook(tmp_path, read_only=True)
+        ws = wb.active
+
+        # Parse entries - expect Source Term in col 1, Target Term in col 2
+        entries = []
+        skipped = 0
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or len(row) < 2:
+                skipped += 1
+                continue
+
+            source_term = str(row[0]).strip() if row[0] else ""
+            target_term = str(row[1]).strip() if row[1] else ""
+
+            if source_term and target_term and len(source_term) >= 2:
+                entries.append({"source": source_term, "target": target_term})
+            else:
+                skipped += 1
+
+        wb.close()
+
+        # Clean up temp file
+        Path(tmp_path).unlink(missing_ok=True)
+
+        if not entries:
+            raise HTTPException(status_code=400, detail="No valid entries found in XLSX file")
+
+        # Convert to TBX and save
+        tm_name = f"glossary_{uuid.uuid4().hex[:8]}_{Path(file.filename).stem}"
+        tbx_filename = f"{tm_name}.tbx"
+        tbx_path = settings.tm_path / tbx_filename
+
+        # Build TBX XML
+        martif = etree.Element("martif", type="TBX-Basic")
+        martif.set("{http://www.w3.org/XML/1998/namespace}lang", "en")
+
+        header = etree.SubElement(martif, "martifHeader")
+        file_desc = etree.SubElement(header, "fileDesc")
+        title_stmt = etree.SubElement(file_desc, "titleStmt")
+        title = etree.SubElement(title_stmt, "title")
+        title.text = f"Imported from {file.filename}"
+
+        text = etree.SubElement(martif, "text")
+        body = etree.SubElement(text, "body")
+
+        for entry_data in entries:
+            term_entry = etree.SubElement(body, "termEntry")
+
+            lang_en = etree.SubElement(term_entry, "langSet")
+            lang_en.set("{http://www.w3.org/XML/1998/namespace}lang", "en")
+            tig_en = etree.SubElement(lang_en, "tig")
+            term_en = etree.SubElement(tig_en, "term")
+            term_en.text = entry_data["source"]
+
+            lang_pl = etree.SubElement(term_entry, "langSet")
+            lang_pl.set("{http://www.w3.org/XML/1998/namespace}lang", "pl")
+            tig_pl = etree.SubElement(lang_pl, "tig")
+            term_pl = etree.SubElement(tig_pl, "term")
+            term_pl.text = entry_data["target"]
+
+        tree = etree.ElementTree(martif)
+        tree.write(str(tbx_path), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+
+        # Load into TM Manager
+        success = tm_manager.add_tm(
+            name=tm_name,
+            file_path=str(tbx_path),
+            priority=priority,
+            enabled=True,
+            auto_load=True,
+            file_type="tbx"
+        )
+
+        if not success:
+            tbx_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=500, detail="Failed to load glossary")
+
+        tm = tm_manager.memories[tm_name]
+
+        logger.info(f"Imported XLSX glossary '{file.filename}': {len(tm.entries)} entries, priority={priority}")
+
+        return {
+            "name": tm.name,
+            "priority": tm.priority,
+            "enabled": tm.enabled,
+            "entries_count": len(tm.entries),
+            "skipped_rows": skipped,
+            "file_type": "tbx",
+            "message": f"Imported {len(tm.entries)} glossary entries from XLSX (skipped {skipped} invalid rows)"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error importing XLSX glossary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

@@ -241,6 +241,49 @@ const TranslationPage = () => {
     }
   };
 
+  const handleExportGlossaryTBX = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/glossary/${documentId}/export/approved/tbx`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `glossary_${documentId}.tbx`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('TBX export failed:', err);
+      alert('Nie udało się wyeksportować glosariusza TBX');
+    }
+  };
+
+  const handleImportGlossaryXLSX = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.xlsx')) {
+      alert('Tylko pliki .xlsx są obsługiwane');
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await authFetch(`${API_BASE_URL}/tm/import-glossary-xlsx`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error('Import failed');
+      const data = await response.json();
+      alert(`Zaimportowano ${data.entries_count} terminów z glosariusza XLSX (pominięto ${data.skipped_rows} wierszy)`);
+    } catch (err) {
+      console.error('XLSX import failed:', err);
+      alert('Nie udało się zaimportować glosariusza XLSX');
+    }
+    e.target.value = '';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -655,9 +698,16 @@ const TranslationPage = () => {
                   <button
                     onClick={handleExportGlossaryApproved}
                     className="px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
-                    title="Eksportuj zatwierdzoną terminologię do CSV"
+                    title="Eksportuj zatwierdzoną terminologię do XLSX"
                   >
-                    📚 Glosariusz
+                    📚 Glosariusz XLSX
+                  </button>
+                  <button
+                    onClick={handleExportGlossaryTBX}
+                    className="px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                    title="Eksportuj zatwierdzoną terminologię do TBX (do ponownego użycia)"
+                  >
+                    📖 Glosariusz TBX
                   </button>
                   <button
                     onClick={handleExportTM}
@@ -1003,9 +1053,19 @@ const TranslationPage = () => {
                     setShowSuccessModal(false);
                   }}
                   className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold shadow-md transition-colors text-sm"
-                  title="Eksportuj glosariusz"
+                  title="Eksportuj glosariusz XLSX"
                 >
-                  📚 Glosariusz
+                  📚 XLSX
+                </button>
+                <button
+                  onClick={() => {
+                    handleExportGlossaryTBX();
+                    setShowSuccessModal(false);
+                  }}
+                  className="flex-1 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold shadow-md transition-colors text-sm"
+                  title="Eksportuj glosariusz TBX"
+                >
+                  📖 TBX
                 </button>
                 <button
                   onClick={() => {

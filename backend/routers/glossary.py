@@ -925,6 +925,79 @@ async def export_approved_terms_xlsx(document_id: str, db: Session = Depends(get
     )
 
 
+@router.get("/{document_id}/export/approved/tbx")
+async def export_approved_terms_tbx(document_id: str, db: Session = Depends(get_db)):
+    """
+    Eksport zatwierdzonych terminów jako glosariusz TBX.
+
+    Args:
+        document_id: ID dokumentu
+
+    Returns:
+        Plik TBX z zatwierdzonymi/edytowanymi terminami
+    """
+    from lxml import etree
+
+    db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not db_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    approved_terms = db.query(models.Term).filter(
+        models.Term.document_id == document_id,
+        models.Term.status.in_(["approved", "edited"])
+    ).order_by(models.Term.source_term).all()
+
+    if not approved_terms:
+        raise HTTPException(status_code=404, detail="No approved terms found")
+
+    # Build TBX
+    martif = etree.Element("martif", type="TBX-Basic")
+    martif.set("{http://www.w3.org/XML/1998/namespace}lang", "en")
+
+    header = etree.SubElement(martif, "martifHeader")
+    file_desc = etree.SubElement(header, "fileDesc")
+    title_stmt = etree.SubElement(file_desc, "titleStmt")
+    title_el = etree.SubElement(title_stmt, "title")
+    title_el.text = f"Glossary - {db_document.filename}"
+    source_desc = etree.SubElement(file_desc, "sourceDesc")
+    p = etree.SubElement(source_desc, "p")
+    p.text = "Exported from ECTHR Translator"
+
+    text_el = etree.SubElement(martif, "text")
+    body = etree.SubElement(text_el, "body")
+
+    for term in approved_terms:
+        term_entry = etree.SubElement(body, "termEntry")
+
+        lang_en = etree.SubElement(term_entry, "langSet")
+        lang_en.set("{http://www.w3.org/XML/1998/namespace}lang", "en")
+        tig_en = etree.SubElement(lang_en, "tig")
+        term_en = etree.SubElement(tig_en, "term")
+        term_en.text = term.source_term
+
+        lang_pl = etree.SubElement(term_entry, "langSet")
+        lang_pl.set("{http://www.w3.org/XML/1998/namespace}lang", "pl")
+        tig_pl = etree.SubElement(lang_pl, "tig")
+        term_pl = etree.SubElement(tig_pl, "term")
+        term_pl.text = term.target_term
+
+    # Save to file
+    from config import settings
+    export_filename = f"glossary_export_{document_id}.tbx"
+    file_path = settings.output_path / export_filename
+
+    tree = etree.ElementTree(martif)
+    tree.write(str(file_path), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+
+    logger.info(f"Exported {len(approved_terms)} approved terms as TBX for document {document_id}")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=export_filename,
+        media_type="application/xml"
+    )
+
+
 @router.get("/{document_id}/export/project-state")
 async def export_project_state(document_id: str, db: Session = Depends(get_db)):
     """
