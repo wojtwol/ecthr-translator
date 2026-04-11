@@ -583,3 +583,90 @@ async def import_glossary_xlsx(
     except Exception as e:
         logger.error(f"Error importing XLSX glossary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/update-from-project/{document_id}")
+async def update_tm_from_project(
+    document_id: str,
+    db: Session = Depends(get_db),
+    tm_manager: MultiTMManager = Depends(get_tm_manager)
+):
+    """
+    Aktualizacja globalnej pamięci tłumaczeniowej segmentami z danego projektu.
+
+    Args:
+        document_id: ID dokumentu/projektu
+
+    Returns:
+        Informacje o liczbie dodanych segmentów
+    """
+    try:
+        db_document = db.query(models.Document).filter(models.Document.id == document_id).first()
+        if not db_document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        segments = (
+            db.query(models.Segment)
+            .filter(models.Segment.document_id == document_id)
+            .filter(models.Segment.target_text.isnot(None))
+            .filter(models.Segment.target_text != "")
+            .order_by(models.Segment.index)
+            .all()
+        )
+
+        if not segments:
+            raise HTTPException(status_code=404, detail="No translated segments found for this document")
+
+        added_count = 0
+        skipped_count = 0
+
+        for seg in segments:
+            if seg.source_text and seg.target_text:
+                src_clean = _strip_leading_numbering(seg.source_text)
+                tgt_clean = _strip_leading_numbering(seg.target_text)
+
+                if not src_clean or not tgt_clean:
+                    continue
+
+                # Check if already exists in any TM
+                existing = tm_manager.find_exact(src_clean)
+                if existing is None:
+                    tm_manager.add_entry(
+                        source=src_clean,
+                        target=tgt_clean,
+                        metadata={
+                            "source": "project",
+                            "document_id": document_id,
+                            "document_name": db_document.filename,
+                        }
+                    )
+                    added_count += 1
+                else:
+                    skipped_count += 1
+
+        # Save updated TM
+        tm_name = f"project_{document_id}"
+        if tm_name in tm_manager.memories:
+            tm_manager.save_tm(tm_name)
+        else:
+            # Entries were added to "default" TM
+            if "default" in tm_manager.memories:
+                tm_manager.save_tm("default", str(settings.tm_path / f"tm_project_{document_id}.tmx"))
+
+        total_entries = sum(len(tm.entries) for tm in tm_manager.memories.values())
+
+        logger.info(f"Updated TM from document {document_id}: added {added_count}, skipped {skipped_count}")
+
+        return {
+            "status": "success",
+            "document_id": document_id,
+            "added": added_count,
+            "skipped": skipped_count,
+            "total_entries": total_entries,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating TM from project: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

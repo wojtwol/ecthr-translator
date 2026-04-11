@@ -284,6 +284,25 @@ const TranslationPage = () => {
     e.target.value = '';
   };
 
+  const handleSaveProject = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/glossary/${documentId}/export/project-state`);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `project_${documentId}.json`;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('Project save failed:', err);
+      alert('Nie udalo sie zapisac projektu');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -723,6 +742,13 @@ const TranslationPage = () => {
                   >
                     🔄 Aktualizuj TM
                   </button>
+                  <button
+                    onClick={handleSaveProject}
+                    className="px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+                    title="Zapisz stan projektu (terminy, segmenty) do pliku JSON"
+                  >
+                    💾 Zapisz projekt
+                  </button>
                 </div>
               </div>
             </div>
@@ -1088,6 +1114,16 @@ const TranslationPage = () => {
                   🔄 Aktualizuj TM
                 </button>
               </div>
+              <button
+                onClick={() => {
+                  handleSaveProject();
+                  setShowSuccessModal(false);
+                }}
+                className="w-full px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold shadow-md transition-colors text-sm"
+                title="Zapisz stan projektu do pliku JSON"
+              >
+                💾 Zapisz projekt
+              </button>
               <button
                 onClick={() => navigate('/')}
                 className="w-full px-4 py-2 text-gray-600 hover:text-gray-900 text-sm transition-colors"
